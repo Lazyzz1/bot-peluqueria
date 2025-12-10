@@ -1,0 +1,32 @@
+# ========== ARCHIVOS SECRETOS (CRÍTICO) ==========
+.env
+token.json
+credentials.json
+
+# ========== ARCHIVOS TEMPORALES ==========
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+recordatorios_enviados.json
+
+# ========== ENTORNOS VIRTUALES ==========
+venv/
+env/
+ENV/
+.venv
+
+# ========== EDITORES/IDEs ==========
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ========== SISTEMA OPERATIVO ==========
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ========== LOGS ==========
+*.log
