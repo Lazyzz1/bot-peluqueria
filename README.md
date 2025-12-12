@@ -1,34 +1,37 @@
-# Bot de Peluquería para WhatsApp
+# Sistema de Reservas por WhatsApp para Peluquerías
 
-Bot automatizado para gestionar reservas de turnos vía WhatsApp Business API.
+Este proyecto es un sistema de automatización de turnos que permite a peluquerías,
+barberías y salones gestionar reservas a través de WhatsApp sin intervención manual.
 
-## Características
-- Reserva de turnos automática
+## Descripción del servicio
+
+El bot recibe solicitudes de turno por WhatsApp, permite:
+- Elegir fecha y horario
+- Confirmar turnos automáticamente
+- Enviar recordatorios (24h y 2h antes)
+- Cancelar turnos
 - Integración con Google Calendar
-- Cancelación de turnos
-- Recordatorios automáticos 24h antes
 
-## Configuración
+Este software se ofrece como servicio de automatización para negocios que
+necesitan gestionar turnos de forma eficiente y sin personal dedicado.
 
-1. Instalar dependencias:
-```bash
-pip install -r requirements.txt
-```
+## Quién lo desarrolla
 
-2. Configurar variables de entorno en `.env`:
-```
-ACCESS_TOKEN=tu_token_aqui
-PHONE_NUMBER_ID=tu_phone_id
-VERIFY_TOKEN=12345
-```
+Desarrollado por:
+**Lucas Romero**  
+Email: lukasbenavides710@gmail.com  
+País: Argentina
 
-3. Agregar credenciales de Google Calendar (`token.json`)
+## Cómo contratar o solicitar este servicio
 
-4. Ejecutar:
-```bash
-python peluqueria_bot_prueba.py
-```
+Para recibir una demostración o contratar la instalación
+del bot de reservas, contactá a:
 
-## Deployment
+Email: lukasgromero547@gmail.com
+
+## Propósito comercial
+
+Este proyecto representa un producto comercial, no un experimento.  
+Se utiliza para ofrecer **servicios de automatización de turnos** a negocios reales.
 
 Ver guía de deployment en Railway.
