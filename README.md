@@ -19,7 +19,7 @@ necesitan gestionar turnos de forma eficiente y sin personal dedicado.
 
 Desarrollado por:
 **Lucas Romero**  
-Email: lukasbenavides710@gmail.com  
+Email: lucasbenavides710@gmail.com  
 País: Argentina
 
 ## Cómo contratar o solicitar este servicio
