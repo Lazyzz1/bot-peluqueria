@@ -106,4 +106,4 @@ Reventa del código fuente requiere licencia extendida.
 
 ## 🙏 Créditos
 
-Desarrollado por Lucas.
+Desarrollado por Lazyzz1.
