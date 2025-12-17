@@ -1,37 +1,109 @@
-# Sistema de Reservas por WhatsApp para Peluquerías
+# 🤖 Bot de WhatsApp para Peluquerías
 
-Este proyecto es un sistema de automatización de turnos que permite a peluquerías,
-barberías y salones gestionar reservas a través de WhatsApp sin intervención manual.
+Sistema automatizado de gestión de turnos para peluquerías vía WhatsApp.
 
-## Descripción del servicio
+## 🌟 Características
 
-El bot recibe solicitudes de turno por WhatsApp, permite:
-- Elegir fecha y horario
-- Confirmar turnos automáticamente
-- Enviar recordatorios (24h y 2h antes)
+- ✅ Reserva de turnos 24/7
+- ✅ Integración con Google Calendar
+- ✅ Recordatorios automáticos (24h y 2h antes)
+- ✅ Cancelación y reagendado de turnos
+- ✅ Multi-peluquería (SaaS)
+- ✅ WhatsApp Business API
+
+## 🚀 Instalación Local
+
+### Requisitos
+- Python 3.11+
+- Cuenta de Twilio
+- Cuenta de Google Cloud (Calendar API)
+- WhatsApp Business (para producción)
+
+### Pasos
+
+1. **Clonar repositorio:**
+```bash
+git clone https://github.com/TU_USUARIO/bot-peluqueria.git
+cd bot-peluqueria
+```
+
+2. **Crear entorno virtual:**
+```bash
+python -m venv venv
+source venv/bin/activate  # En Windows: venv\Scripts\activate
+```
+
+3. **Instalar dependencias:**
+```bash
+pip install -r requirements.txt
+```
+
+4. **Configurar variables de entorno:**
+```bash
+cp .env.example .env
+# Editar .env con tus credenciales
+```
+
+5. **Configurar Google Calendar:**
+```bash
+python autenticar_google.py sandbox
+```
+
+6. **Configurar clientes:**
+```bash
+cp clientes.json.example clientes.json
+# Editar clientes.json con tus datos
+```
+
+7. **Ejecutar bot:**
+```bash
+python peluqueria_bot_prueba.py
+```
+
+## 🌐 Deploy en Railway
+
+1. Push a GitHub
+2. Conectar Railway con tu repo
+3. Configurar variables de entorno
+4. Subir tokens de Google Calendar
+5. Deploy automático
+
+Ver guía completa: [DEPLOY.md](DEPLOY.md)
+
+## 📱 Funcionalidades
+
+### Para Clientes:
+- Pedir turno (con selección de día y horario)
+- Ver turnos reservados
 - Cancelar turnos
-- Integración con Google Calendar
+- Reagendar turnos
+- Ver servicios y precios
+- Preguntas frecuentes
+- Ubicación y contacto
 
-Este software se ofrece como servicio de automatización para negocios que
-necesitan gestionar turnos de forma eficiente y sin personal dedicado.
+### Para Peluqueros:
+- Gestión automática de agenda
+- Recordatorios automáticos
+- Sincronización con Google Calendar
+- Sin intervención manual
 
-## Quién lo desarrolla
+## 💰 Modelo de Negocio
 
-Desarrollado por:
-**Lucas Romero**  
-Email: lucasbenavides710@gmail.com  
-País: Argentina
+- **Código fuente:** USD $149 (licencia única)
+- **SaaS:** USD $50-80/mes por cliente
+- **Instalación + Soporte:** USD $249
 
-## Cómo contratar o solicitar este servicio
+## 📄 Licencia
 
-Para recibir una demostración o contratar la instalación
-del bot de reservas, contactá a:
+Uso personal o comercial permitido con atribución.
+Reventa del código fuente requiere licencia extendida.
 
-Email: lukasgromero547@gmail.com
+## 🆘 Soporte
 
-## Propósito comercial
+- Email: lucasbenavides710@gmail.com
+- WhatsApp: +54 9 2974924147
+- Issues: GitHub Issues
 
-Este proyecto representa un producto comercial, no un experimento.  
-Se utiliza para ofrecer **servicios de automatización de turnos** a negocios reales.
+## 🙏 Créditos
 
-Ver guía de deployment en Railway.
+Desarrollado por Lucas.
