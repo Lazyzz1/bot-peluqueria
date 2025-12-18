@@ -1,8 +1,9 @@
 # ========== ARCHIVOS SECRETOS (CRÍTICO) ==========
 .env
-token.json
+tokens/
 credentials.json
-
+clientes.json
+user_states.json
 # ========== ARCHIVOS TEMPORALES ==========
 __pycache__/
 *.pyc

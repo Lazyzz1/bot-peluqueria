@@ -38,10 +38,18 @@ source venv/bin/activate  # En Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+<<<<<<< HEAD
 4. **Configurar variables de entorno:**
 ```bash
 cp .env.example .env
 # Editar .env con tus credenciales
+=======
+2. Configurar variables de entorno en `.env`:
+```
+ACCESS_TOKEN=tu_token_aqui
+PHONE_NUMBER_ID=tu_phone_id
+VERIFY_TOKEN=marcelino
+>>>>>>> a359c75 (Agregar archivos de deploy)
 ```
 
 5. **Configurar Google Calendar:**
@@ -60,7 +68,19 @@ cp clientes.json.example clientes.json
 python peluqueria_bot_prueba.py
 ```
 
+<<<<<<< HEAD
 ## 🌐 Deploy en Railway
+=======
+## Uso
+Este software se ofrece como servicio a negocios de estética y peluquería.
+
+## Responsable
+Lucas Romero  
+Email: tuemail@gmail.com  
+País: Argentina
+
+## Deployment
+>>>>>>> a359c75 (Agregar archivos de deploy)
 
 1. Push a GitHub
 2. Conectar Railway con tu repo
