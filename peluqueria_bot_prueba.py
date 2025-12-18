@@ -802,7 +802,7 @@ def webhook():
 
                 if not horarios:
                     enviar_mensaje("Ese día no tiene horarios disponibles 😕", numero)
-                    return
+                    return "", 200
 
                 user_states[numero_limpio]["horarios"] = horarios
                 user_states[numero_limpio]["paso"] = "seleccionar_horario"

@@ -2,7 +2,7 @@
   "sandbox": {
     "nombre": "Peluquería Demo",
     "calendar_id": "primary",
-    "token_file": "tokens/sandbox_token.json",
+    "token_file": "tokens/master_token.json",
     "servicios": [
       {"nombre": "Corte clásico", "duracion": 30, "precio": 13000},
       {"nombre": "Barba y bigote", "duracion": 20, "precio": 3000}
