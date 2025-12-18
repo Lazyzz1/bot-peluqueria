@@ -2,7 +2,6 @@
 .env
 tokens/
 credentials.json
-clientes.json
 user_states.json
 # ========== ARCHIVOS TEMPORALES ==========
 __pycache__/

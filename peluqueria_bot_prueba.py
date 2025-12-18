@@ -172,9 +172,17 @@ def esta_ocupado(horario, ocupados):
 def obtener_horarios_disponibles(peluqueria_key, dia_seleccionado=None):
     """Genera turnos y revisa eventos ocupados en Google Calendar"""
     try:
+        print(f"🔍 DEBUG: Obteniendo horarios para {peluqueria_key}")
+        print(f"🔍 DEBUG: Día seleccionado: {dia_seleccionado}")
+        
         service = get_calendar_service(peluqueria_key)
+        print(f"🔍 DEBUG: Service obtenido: {service is not None}")
+        
         calendar_id = get_calendar_config(peluqueria_key)
+        print(f"🔍 DEBUG: Calendar ID: {calendar_id}")
+        
         if not service:
+            print("❌ DEBUG: Service es None, retornando []")
             return []
 
         tz = pytz.timezone('America/Argentina/Buenos_Aires')
@@ -1081,7 +1089,7 @@ if __name__ == "__main__":
 
     # ✅ Puerto dinámico
     port = int(os.environ.get("PORT", 3000))
-    app.run(host="0.0.0.0", port=port)# debug=False en producción
+    app.run(host="0.0.0.0", port=port)
   
   
     # Debug true: para ver todos los errores detallados, el servidor se reinicia automáticamente al guardar cambios,
