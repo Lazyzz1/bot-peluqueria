@@ -1,16 +1,6 @@
 {
-  "sandbox": {
-    "nombre": "Peluquería Demo",
-    "calendar_id": "primary",
-    "token_file": "tokens/master_token.json",
-    "servicios": [
-      {"nombre": "Corte clásico", "duracion": 30, "precio": 13000},
-      {"nombre": "Barba y bigote", "duracion": 20, "precio": 3000}
-    ]
-  },
-
   "cliente_001": {
-    "nombre": "Peluquería El Míster",
+    "nombre": "Peluquería Demo",
     "calendar_id": "0afaa235107f3a3c6be1c186247291ac1576e7ea3e84f60129244e32f56e9dd6@group.calendar.google.com",
     "token_file": "tokens/master_token.json",
     "owner_email": "dueno@peluqueria.com",

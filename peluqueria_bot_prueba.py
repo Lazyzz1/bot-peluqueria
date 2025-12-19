@@ -123,34 +123,34 @@ restaurar_token_google_master()
 # ------------------- CONFIGURACIÓN GOOGLE CALENDAR ---------------------
 
 
-def get_calendar_service(peluqueria_key):   
+def get_calendar_service(peluqueria_key):
     """Conecta con Google Calendar para una peluquería específica"""
     try:
         config = PELUQUERIAS[peluqueria_key]
         token_file = config["token_file"]
 
-        # Verificar que existe el token
         if not os.path.exists(token_file):
             print(f"❌ ERROR: No existe {token_file}")
-            print(f"   Ejecuta: python autenticar_google.py {peluqueria_key}")
             return None
 
         creds = Credentials.from_authorized_user_file(token_file, SCOPES)
 
-        # Refrescar si expiró
         if creds.expired and creds.refresh_token:
             try:
                 creds.refresh(Request())
-                # Guardar el token actualizado
-                with open(token_file, 'w') as token:
+                with open(token_file, "w") as token:
                     token.write(creds.to_json())
-                print(f"✅ Token de {peluqueria_key} refrescado")
+                print(f"✅ Token Google refrescado ({peluqueria_key})")
             except Exception as e:
-                print(f"❌ Error refrescando token de {peluqueria_key}: {e}")
+                print(f"❌ Error refrescando token ({peluqueria_key}): {e}")
                 return None
 
-        service = build('calendar', 'v3', credentials=creds)
-        return service
+        return build("calendar", "v3", credentials=creds)
+
+    except KeyError:
+        print(f"❌ Peluquería no encontrada: {peluqueria_key}")
+        return None
+
         
     except Exception as e:
         print(f"❌ Error conectando Google Calendar para {peluqueria_key}: {e}")
@@ -857,6 +857,27 @@ def webhook():
             enviar_mensaje(mensaje, numero)
         else:
             enviar_mensaje("📌 ¿Qué servicio querés?\nEj: Corte, Tintura, Barba", numero)
+
+    elif estado == "seleccionar_turno_reagendar":
+        try:
+            index = int(texto) - 1
+            turnos = user_states[numero_limpio]["turnos"]
+
+            if 0 <= index < len(turnos):
+                turno = turnos[index]
+                user_states[numero_limpio]["turno_reagendar"] = turno
+                user_states[numero_limpio]["paso"] = "elegir_nueva_fecha"
+
+                enviar_mensaje(
+                    "📆 Perfecto. Ahora elegí la nueva fecha para el turno.",
+                    numero
+                )
+            else:
+                enviar_mensaje("❌ Número fuera de rango.", numero)
+
+        except ValueError:
+            enviar_mensaje("❌ Respondé con un número.", numero)
+
 
     elif estado == "servicio":
         config = PELUQUERIAS[peluqueria_key]
