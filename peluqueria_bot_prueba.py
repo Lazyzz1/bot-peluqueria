@@ -858,26 +858,6 @@ def webhook():
         else:
             enviar_mensaje("📌 ¿Qué servicio querés?\nEj: Corte, Tintura, Barba", numero)
 
-    elif estado == "seleccionar_turno_reagendar":
-        try:
-            index = int(texto) - 1
-            turnos = user_states[numero_limpio]["turnos"]
-
-            if 0 <= index < len(turnos):
-                turno = turnos[index]
-                user_states[numero_limpio]["turno_reagendar"] = turno
-                user_states[numero_limpio]["paso"] = "elegir_nueva_fecha"
-
-                enviar_mensaje(
-                    "📆 Perfecto. Ahora elegí la nueva fecha para el turno.",
-                    numero
-                )
-            else:
-                enviar_mensaje("❌ Número fuera de rango.", numero)
-
-        except ValueError:
-            enviar_mensaje("❌ Respondé con un número.", numero)
-
 
     elif estado == "servicio":
         config = PELUQUERIAS[peluqueria_key]
@@ -1042,6 +1022,28 @@ def webhook():
         
             mensaje = "🔄 *Selecciona el turno a reagendar:*\n\n" + "\n".join(lista)
             enviar_mensaje(mensaje, numero)
+    elif user_states[numero_limpio]["paso"] == "seleccionar_turno_reagendar":
+        try:
+            opcion = int(texto) - 1
+            turnos = user_states[numero_limpio]["turnos"]
+
+            if opcion < 0 or opcion >= len(turnos):
+                enviar_mensaje("❌ Opción inválida. Elegí un número de la lista.", numero)
+                return
+
+            turno_seleccionado = turnos[opcion]
+
+            user_states[numero_limpio]["turno_a_reagendar"] = turno_seleccionado
+            user_states[numero_limpio]["paso"] = "elegir_nueva_fecha"
+
+            enviar_mensaje(
+                "📅 Indicá la nueva fecha para el turno (por ejemplo: 25/12):",
+                numero
+            )
+
+        except ValueError:
+            enviar_mensaje("❌ Enviá solo el número del turno.", numero)
+
 
     # OPCIÓN 6: 'PREGUNTAS FRECUENTES (FAQ)'
     elif estado == "menu" and texto == "6":
