@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+
 """
 Script para agregar nuevos clientes al bot SaaS
 Uso: python agregar_cliente.py
@@ -6,6 +6,33 @@ Uso: python agregar_cliente.py
 
 import json
 import os
+import re
+from datetime import datetime
+
+def validar_calendar_id(calendar_id):
+    """Valida formato básico de Calendar ID de Google"""
+    # Formato: algo@group.calendar.google.com o email@gmail.com
+    patron = r'^[a-zA-Z0-9._-]+@(group\.calendar\.google\.com|gmail\.com)$'
+    return re.match(patron, calendar_id) is not None
+
+def validar_email(email):
+    """Valida formato básico de email"""
+    if not email:
+        return True  # Email opcional
+    patron = r'^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return re.match(patron, email) is not None
+
+def hacer_backup(archivo):
+    """Crea backup del archivo antes de modificarlo"""
+    if os.path.exists(archivo):
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup = f"{archivo}.backup_{timestamp}"
+        with open(archivo, 'r', encoding='utf-8') as f:
+            contenido = f.read()
+        with open(backup, 'w', encoding='utf-8') as f:
+            f.write(contenido)
+        return backup
+    return None
 
 def agregar_cliente():
     print("🎯 AGREGAR NUEVO CLIENTE AL BOT SAAS")
@@ -24,19 +51,54 @@ def agregar_cliente():
     except json.JSONDecodeError:
         print("❌ ERROR: clientes.json está corrupto")
         return
-    
-    # Solicitar datos
-    print("\n📝 Ingresa los datos del nuevo cliente:")
-    
-    key = input("ID único (ej: peluqueria_sol): ").strip()
-    
-    if key in clientes:
-        print(f"❌ ERROR: '{key}' ya existe!")
+    except Exception as e:
+        print(f"❌ ERROR al leer archivo: {e}")
         return
     
-    nombre = input("Nombre del negocio: ").strip()
-    calendar_id = input("Calendar ID de Google: ").strip()
-    email_cliente = input("Email del cliente (opcional): ").strip()
+    # Solicitar datos con validación
+    print("\n📝 Ingresa los datos del nuevo cliente:")
+    
+    # Key con validación
+    while True:
+        key = input("ID único (ej: peluqueria_sol): ").strip()
+        if not key:
+            print("❌ El ID no puede estar vacío")
+            continue
+        if key in clientes:
+            print(f"❌ ERROR: '{key}' ya existe!")
+            continue
+        if not re.match(r'^[a-z0-9_]+$', key):
+            print("❌ Solo usa letras minúsculas, números y guiones bajos")
+            continue
+        break
+    
+    # Nombre con validación
+    while True:
+        nombre = input("Nombre del negocio: ").strip()
+        if nombre:
+            break
+        print("❌ El nombre no puede estar vacío")
+    
+    # Calendar ID con validación
+    while True:
+        calendar_id = input("Calendar ID de Google: ").strip()
+        if not calendar_id:
+            print("❌ El Calendar ID no puede estar vacío")
+            continue
+        if not validar_calendar_id(calendar_id):
+            print("⚠️  Formato inválido. Debe ser: algo@group.calendar.google.com")
+            print("   ¿Continuar de todas formas? (s/n): ", end="")
+            if input().strip().lower() == 's':
+                break
+            continue
+        break
+    
+    # Email con validación
+    while True:
+        email_cliente = input("Email del cliente (opcional, Enter para omitir): ").strip()
+        if not email_cliente or validar_email(email_cliente):
+            break
+        print("❌ Formato de email inválido")
     
     # Preguntar por servicios personalizados
     print("\n¿Deseas usar servicios por defecto? (s/n): ", end="")
@@ -54,10 +116,18 @@ def agregar_cliente():
         while True:
             nombre_servicio = input("  Nombre del servicio: ").strip()
             if not nombre_servicio:
+                if not servicios:
+                    print("  ⚠️  Debes agregar al menos un servicio")
+                    continue
                 break
             try:
                 precio = int(input("  Precio (ARS): ").strip())
                 duracion = int(input("  Duración (minutos): ").strip())
+                
+                if precio <= 0 or duracion <= 0:
+                    print("  ❌ El precio y duración deben ser mayores a 0")
+                    continue
+                    
                 servicios.append({
                     "nombre": nombre_servicio,
                     "precio": precio,
@@ -65,22 +135,52 @@ def agregar_cliente():
                 })
                 print(f"  ✅ '{nombre_servicio}' agregado")
             except ValueError:
-                print("  ⚠️ Precio y duración deben ser números")
+                print("  ⚠️  Precio y duración deben ser números")
     
     # Crear estructura
-    clientes[key] = {
+    nuevo_cliente = {
         "nombre": nombre,
         "calendar_id": calendar_id,
-        "token_file": "tokens/master_token.json",  # ← Ajusta según tu configuración
+        "token_file": "tokens/master_token.json",
         "servicios": servicios
     }
     
     if email_cliente:
-        clientes[key]["owner_email"] = email_cliente
+        nuevo_cliente["owner_email"] = email_cliente
+    
+    # Mostrar resumen y confirmar
+    print("\n" + "="*50)
+    print("📋 RESUMEN DEL NUEVO CLIENTE:")
+    print("="*50)
+    print(f"ID: {key}")
+    print(f"Nombre: {nombre}")
+    print(f"Calendar ID: {calendar_id}")
+    print(f"Email: {email_cliente or '(no especificado)'}")
+    print(f"Servicios: {len(servicios)}")
+    for serv in servicios:
+        print(f"  - {serv['nombre']}: ${serv['precio']} ({serv['duracion']} min)")
+    print("="*50)
+    print("\n¿Confirmar y guardar? (s/n): ", end="")
+    
+    if input().strip().lower() != 's':
+        print("❌ Operación cancelada")
+        return
+    
+    # Hacer backup
+    backup_file = hacer_backup("clientes.json")
+    if backup_file:
+        print(f"💾 Backup creado: {backup_file}")
     
     # Guardar
-    with open("clientes.json", "w", encoding="utf-8") as f:
-        json.dump(clientes, f, indent=2, ensure_ascii=False)
+    try:
+        clientes[key] = nuevo_cliente
+        with open("clientes.json", "w", encoding="utf-8") as f:
+            json.dump(clientes, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        print(f"❌ ERROR al guardar: {e}")
+        if backup_file:
+            print(f"   Puedes restaurar desde: {backup_file}")
+        return
     
     print("\n✅ Cliente agregado exitosamente!")
     print("\n📋 PRÓXIMOS PASOS:")
@@ -111,4 +211,9 @@ def agregar_cliente():
     print("\n📊 Con 10 clientes: ~USD $560/mes de ganancia neta")
 
 if __name__ == "__main__":
-    agregar_cliente()
+    try:
+        agregar_cliente()
+    except KeyboardInterrupt:
+        print("\n\n❌ Operación cancelada por el usuario")
+    except Exception as e:
+        print(f"\n❌ ERROR INESPERADO: {e}")
