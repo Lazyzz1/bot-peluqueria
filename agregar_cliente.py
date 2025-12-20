@@ -93,6 +93,14 @@ def agregar_cliente():
             continue
         break
     
+    numero_twilio = input("Número de Twilio (ej: +14155238886): ").strip()
+
+    # Validar formato
+    while not numero_twilio.startswith('+'):
+        print("⚠️ El número debe empezar con + (ej: +14155238886)")
+        numero_twilio = input("Número de Twilio: ").strip()
+
+
     # Email con validación
     while True:
         email_cliente = input("Email del cliente (opcional, Enter para omitir): ").strip()
@@ -138,16 +146,18 @@ def agregar_cliente():
                 print("  ⚠️  Precio y duración deben ser números")
     
     # Crear estructura
-    nuevo_cliente = {
+    clientes[key] = {
         "nombre": nombre,
+        "numero_twilio": numero_twilio,  # ✅ NUEVO CAMPO
         "calendar_id": calendar_id,
         "token_file": "tokens/master_token.json",
         "servicios": servicios
     }
-    
+
+
     if email_cliente:
-        nuevo_cliente["owner_email"] = email_cliente
-    
+        clientes[key]["owner_email"] = email_cliente
+        
     # Mostrar resumen y confirmar
     print("\n" + "="*50)
     print("📋 RESUMEN DEL NUEVO CLIENTE:")
@@ -173,7 +183,7 @@ def agregar_cliente():
     
     # Guardar
     try:
-        clientes[key] = nuevo_cliente
+        clientes[key] = email_cliente
         with open("clientes.json", "w", encoding="utf-8") as f:
             json.dump(clientes, f, indent=2, ensure_ascii=False)
     except Exception as e:
@@ -182,33 +192,31 @@ def agregar_cliente():
             print(f"   Puedes restaurar desde: {backup_file}")
         return
     
-    print("\n✅ Cliente agregado exitosamente!")
     print("\n📋 PRÓXIMOS PASOS:")
-    print("1. Crea un calendario en Google Calendar llamado:")
+    print("1. Compra un número de Twilio:")
+    print("   https://console.twilio.com/us1/develop/phone-numbers/manage/search")
+    print(f"   - Asegúrate de habilitar WhatsApp")
+    print(f"   - Configura el webhook: https://tu-dominio.railway.app/webhook")
+
+    print("\n2. Crea un calendario en Google Calendar:")
     print(f"   'Turnos - {nombre}'")
-    print("\n2. Obtén el Calendar ID:")
-    print("   - Ve a Configuración del calendario")
-    print("   - Busca 'ID del calendario'")
+
+    print("\n3. Configura el Calendar ID:")
     print(f"   - Verifica que sea: {calendar_id}")
-    print("\n3. Comparte el calendario:")
+
+    print("\n4. Comparte el calendario:")
     if email_cliente:
         print(f"   - Con: {email_cliente}")
-        print("   - Permisos: 'Hacer cambios en eventos'")
-    else:
-        print("   - Con el email del cliente")
-        print("   - Permisos: 'Hacer cambios en eventos'")
-    print("\n4. Configura el número de WhatsApp:")
-    print("   - El bot detecta automáticamente por el número Twilio")
-    print("   - Asegúrate de tener un número Twilio asignado a este cliente")
-    print("\n5. Reinicia el bot:")
-    print("   python peluqueria_bot_prueba.py")
-    print("\n💰 MODELO DE COBRO:")
-    print(f"   Cobra al cliente: USD $60/mes")
-    print(f"   Costos estimados:")
-    print(f"   - Número Twilio: ~USD $1/mes")
-    print(f"   - Mensajes: ~USD $1-3/mes (según uso)")
-    print(f"   Tu ganancia: ~USD $56-58/mes por cliente")
-    print("\n📊 Con 10 clientes: ~USD $560/mes de ganancia neta")
+
+    print("\n💰 MODELO DE COBRO SaaS:")
+    print(f"   Cobra al cliente: USD $80-100/mes")
+    print(f"   Costos por cliente:")
+    print(f"   - Número Twilio: ~USD $1-2/mes")
+    print(f"   - Mensajes: ~USD $1-3/mes")
+    print(f"   - Google Calendar: GRATIS")
+    print(f"   Tu ganancia: ~USD $75-96/mes por cliente")
+    print(f"\n📊 Con 10 clientes: ~USD $750-960/mes de ganancia")
+    print(f"📊 Con 50 clientes: ~USD $3,750-4,800/mes de ganancia")
 
 if __name__ == "__main__":
     try:

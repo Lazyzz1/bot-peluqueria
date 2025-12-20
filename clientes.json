@@ -1,12 +1,24 @@
 {
   "cliente_001": {
     "nombre": "Peluquería Demo",
+    "numero_twilio": "+14155238886",
     "calendar_id": "0afaa235107f3a3c6be1c186247291ac1576e7ea3e84f60129244e32f56e9dd6@group.calendar.google.com",
     "token_file": "tokens/master_token.json",
     "owner_email": "dueno@peluqueria.com",
     "servicios": [
       {"nombre": "Corte clásico", "duracion": 30, "precio": 15000},
       {"nombre": "Tintura", "duracion": 60, "precio": 20000}
+    ]
+  },
+  "cliente_002": {
+    "nombre": "Barbería El Tigre",
+    "numero_twilio": "+14155552222",
+    "calendar_id": "4c738eb4be9fb14b900e832e863a1767a84a9714c19429f4c2c4a0bd3e930635@group.calendar.google.com",
+    "token_file": "tokens/master_token.json",
+    "owner_email": "dueno@barberia.com",
+    "servicios": [
+      {"nombre": "Corte masculino", "duracion": 30, "precio": 12000},
+      {"nombre": "Barba y bigote", "duracion": 20, "precio": 5000}
     ]
   }
 }

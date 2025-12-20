@@ -43,6 +43,7 @@ SCOPES = ['https://www.googleapis.com/auth/calendar']
 try:
     with open("clientes.json", "r", encoding="utf-8") as f:
         PELUQUERIAS = json.load(f)
+    
 except FileNotFoundError:
     raise FileNotFoundError("❌ No se encontró clientes.json")
 except json.JSONDecodeError:
@@ -616,23 +617,31 @@ def enviar_mensaje(texto, numero):
         return False
 
 def detectar_peluqueria(to_number):
-    """Detecta qué peluquería según el número de Twilio que recibió el mensaje"""
-    numero = to_number.replace("whatsapp:", "")
+    """
+    Detecta qué peluquería según el número de Twilio que recibió el mensaje.
+    Sistema multi-tenant para SaaS.
+    """
+    # Limpiar el número (quitar whatsapp: y espacios)
+    numero_twilio = to_number.replace("whatsapp:", "").strip()
     
-    # Buscar coincidencia exacta
-    if numero in PELUQUERIAS:
-        return numero
+    print(f"🔍 Detectando cliente para número Twilio: {numero_twilio}")
     
-    # Si es sandbox, siempre usa el primer cliente o "cliente_001"
-    if "+14155238886" in numero:
-        # Retornar el primer cliente disponible
-        return list(PELUQUERIAS.keys())[0] if PELUQUERIAS else "cliente_001"
+    # Buscar qué cliente tiene este número de Twilio asignado
+    for cliente_key, config in PELUQUERIAS.items():
+        numero_cliente = config.get("numero_twilio", "").strip()
+        
+        if numero_cliente and numero_cliente == numero_twilio:
+            print(f"✅ Cliente encontrado: {cliente_key} ({config['nombre']})")
+            return cliente_key
     
-    # Por defecto, primer cliente
-    primer_cliente = list(PELUQUERIAS.keys())[0] if PELUQUERIAS else "cliente_001"
-    print(f"⚠️ Número no reconocido: {numero}, usando {primer_cliente}")
-    return primer_cliente
-
+    # Si no se encuentra, registrar el error
+    print(f"❌ No se encontró cliente para el número: {numero_twilio}")
+    print(f"📋 Números Twilio registrados:")
+    for key, cfg in PELUQUERIAS.items():
+        print(f"   • {key}: {cfg.get('numero_twilio', 'NO CONFIGURADO')}")
+    
+    # Retornar None para manejar el error apropiadamente
+    return None
 def obtener_menu_principal(peluqueria_key):
     """Genera el menú principal personalizado"""
     config = PELUQUERIAS.get(peluqueria_key, {})
@@ -657,27 +666,46 @@ def obtener_menu_principal(peluqueria_key):
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    """Webhook para recibir mensajes de Twilio WhatsApp"""
+    """
+    Webhook para recibir mensajes de Twilio WhatsApp
+    Sistema multi-tenant: detecta automáticamente el cliente por el número Twilio
+    """
     try:
         # Obtener datos del mensaje
         incoming_msg = request.values.get('Body', '').strip().lower()
-        numero = request.values.get('From', '')
-        to_number = request.values.get('To', '')
+        numero = request.values.get('From', '')  # Número del usuario
+        to_number = request.values.get('To', '')  # Número de Twilio (identifica al cliente)
         
-        print("--- MENSAJE RECIBIDO ---")
-        print(f"De: {numero}")
-        print(f"Para: {to_number}")
-        print(f"Mensaje: {incoming_msg}")
+        print("\n" + "="*60)
+        print("📨 MENSAJE RECIBIDO")
+        print("="*60)
+        print(f"👤 De (cliente final): {numero}")
+        print(f"📞 Para (número Twilio): {to_number}")
+        print(f"💬 Mensaje: {incoming_msg}")
+        print("="*60)
         
-        # Detectar peluquería
+        # Detectar a qué cliente pertenece este número de Twilio
         peluqueria_key = detectar_peluqueria(to_number)
         
-        if peluqueria_key not in PELUQUERIAS:
-            print(f"❌ Peluquería inválida: {peluqueria_key}")
-            enviar_mensaje("❌ Servicio no disponible temporalmente.", numero)
+        # ✅ VALIDACIÓN CRÍTICA: Si no se encuentra el cliente, no continuar
+        if not peluqueria_key or peluqueria_key not in PELUQUERIAS:
+            print(f"❌ CLIENTE NO ENCONTRADO")
+            print(f"🔧 SOLUCIÓN: Agrega este número en clientes.json:")
+            print(f'   "numero_twilio": "{to_number.replace("whatsapp:", "")}"')
+            
+            enviar_mensaje(
+                "❌ *Servicio no configurado*\n\n"
+                "Este número de WhatsApp Business no está registrado en el sistema.\n\n"
+                "Por favor contacta al administrador del servicio.",
+                numero
+            )
             return "", 200
         
-        # Limpiar número
+        print(f"✅ CLIENTE IDENTIFICADO: {peluqueria_key}")
+        print(f"🏪 Negocio: {PELUQUERIAS[peluqueria_key]['nombre']}")
+        print("="*60 + "\n")
+        
+        # Limpiar número del usuario
         numero_limpio = numero.replace('whatsapp:', '')
         texto = incoming_msg
         
@@ -688,9 +716,12 @@ def webhook():
                     "paso": "menu",
                     "peluqueria": peluqueria_key
                 }
+            # Actualizar la peluquería por si cambió
+            else:
+                user_states[numero_limpio]["peluqueria"] = peluqueria_key
         
         # Comandos globales - MENÚ
-        if texto in ["menu", "menú", "inicio", "hola", "hi"]:
+        if texto in ["menu", "menú", "inicio", "hola", "hi", "hey"]:
             with user_states_lock:
                 user_states[numero_limpio] = {
                     "paso": "menu",
@@ -720,13 +751,24 @@ def webhook():
         procesar_mensaje(numero_limpio, texto, estado, peluqueria_key, numero)
         
     except Exception as e:
-        print(f"❌ ERROR EN WEBHOOK: {e}")
+        print(f"\n❌ ERROR CRÍTICO EN WEBHOOK:")
+        print(f"   {str(e)}")
         import traceback
+        print("\n📋 STACK TRACE:")
         traceback.print_exc()
-        # No enviar mensaje de error al usuario para evitar loops
+        print("="*60 + "\n")
+        
+        # Intentar enviar mensaje de error al usuario
+        try:
+            enviar_mensaje(
+                "❌ Ocurrió un error temporal.\n\n"
+                "Por favor escribí *menu* para reintentar.",
+                numero
+            )
+        except:
+            pass
     
     return "", 200
-
 
 def obtener_menu_principal(peluqueria_key):
     """Genera el menú principal personalizado"""
