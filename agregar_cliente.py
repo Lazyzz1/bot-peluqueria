@@ -145,16 +145,88 @@ def agregar_cliente():
             except ValueError:
                 print("  ⚠️  Precio y duración deben ser números")
     
-    # Crear estructura
+    # Preguntar por peluqueros
+    print("\n👥 ¿Quieres agregar peluqueros? (s/n): ", end="")
+    agregar_peluqueros = input().strip().lower()
+    
+    peluqueros = []
+    if agregar_peluqueros == 's':
+        print("\nAgrega peluqueros (deja el nombre vacío para terminar):")
+        
+        while True:
+            nombre_peluquero = input("\n  Nombre del peluquero: ").strip()
+            if not nombre_peluquero:
+                break
+            
+            id_peluquero = nombre_peluquero.lower().replace(" ", "_")
+            
+            # Especialidades
+            print(f"\n  Especialidades de {nombre_peluquero}:")
+            print("  Servicios disponibles:")
+            for i, serv in enumerate(servicios):
+                print(f"    {i+1}. {serv['nombre']}")
+            
+            especialidades = []
+            print("\n  Ingresa los números separados por coma (ej: 1,2,3):")
+            especialidades_input = input("  Especialidades: ").strip()
+            
+            try:
+                indices = [int(x.strip()) - 1 for x in especialidades_input.split(",")]
+                for idx in indices:
+                    if 0 <= idx < len(servicios):
+                        especialidades.append(servicios[idx]["nombre"])
+            except:
+                print("  ⚠️  Formato inválido, se agregará sin especialidades")
+            
+            # Días de trabajo
+            print("\n  Días de trabajo:")
+            print("  1=Lun, 2=Mar, 3=Mié, 4=Jue, 5=Vie, 6=Sáb")
+            dias_input = input("  Ingresa números separados por coma (ej: 1,2,3,4,5): ").strip()
+            
+            dias_map = {
+                "1": "lunes", "2": "martes", "3": "miercoles",
+                "4": "jueves", "5": "viernes", "6": "sabado"
+            }
+            
+            dias_trabajo = []
+            horarios = {}
+            
+            try:
+                for d in dias_input.split(","):
+                    d = d.strip()
+                    if d in dias_map:
+                        dia_nombre = dias_map[d]
+                        dias_trabajo.append(dia_nombre)
+                        
+                        # Horarios para este día
+                        print(f"\n  Horario para {dia_nombre.capitalize()}:")
+                        hora_inicio = input("    Hora inicio (ej: 09:00): ").strip()
+                        hora_fin = input("    Hora fin (ej: 18:00): ").strip()
+                        horarios[dia_nombre] = [hora_inicio, hora_fin]
+            except:
+                print("  ⚠️  Error en horarios")
+            
+            peluquero = {
+                "id": id_peluquero,
+                "nombre": nombre_peluquero,
+                "especialidades": especialidades,
+                "dias_trabajo": dias_trabajo,
+                "horarios": horarios
+            }
+            
+            peluqueros.append(peluquero)
+            print(f"  ✅ '{nombre_peluquero}' agregado")
+    
+    # Crear estructura del cliente
     clientes[key] = {
         "nombre": nombre,
-        "numero_twilio": numero_twilio,  # ✅ NUEVO CAMPO
+        "numero_twilio": numero_twilio,
         "calendar_id": calendar_id,
         "token_file": "tokens/master_token.json",
-        "servicios": servicios
+        "servicios": servicios,
+        "peluqueros": peluqueros  # ✅ NUEVO CAMPO
     }
-
-
+    
     if email_cliente:
         clientes[key]["owner_email"] = email_cliente
         

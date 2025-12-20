@@ -89,6 +89,134 @@ def formatear_fecha_completa(fecha):
     
     return f"{dia_semana} {fecha.day} de {mes}, {fecha.strftime('%H:%M')}"
 
+def obtener_peluqueros_disponibles(peluqueria_key, dia_seleccionado, servicio=None):
+    """
+    Obtiene los peluqueros que trabajan en un día específico
+    y opcionalmente que hagan un servicio específico
+    """
+    config = PELUQUERIAS.get(peluqueria_key, {})
+    peluqueros = config.get("peluqueros", [])
+    
+    if not peluqueros:
+        return []
+    
+    dias_semana = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
+    dia_nombre = dias_semana[dia_seleccionado.weekday()]
+    
+    peluqueros_disponibles = []
+    
+    for peluquero in peluqueros:
+        # Verificar si trabaja ese día
+        if dia_nombre not in peluquero.get("dias_trabajo", []):
+            continue
+        
+        # Si se especificó un servicio, verificar especialidad
+        if servicio:
+            especialidades = peluquero.get("especialidades", [])
+            if servicio not in especialidades:
+                continue
+        
+        peluqueros_disponibles.append(peluquero)
+    
+    return peluqueros_disponibles
+
+
+def obtener_horarios_peluquero(peluqueria_key, dia_seleccionado, peluquero_id):
+    """
+    Obtiene horarios disponibles de un peluquero específico
+    """
+    try:
+        config = PELUQUERIAS.get(peluqueria_key, {})
+        peluqueros = config.get("peluqueros", [])
+        
+        # Buscar el peluquero
+        peluquero = None
+        for p in peluqueros:
+            if p["id"] == peluquero_id:
+                peluquero = p
+                break
+        
+        if not peluquero:
+            return []
+        
+        # Obtener horarios del peluquero para ese día
+        dias_semana = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
+        dia_nombre = dias_semana[dia_seleccionado.weekday()]
+        
+        horarios_dia = peluquero.get("horarios", {}).get(dia_nombre)
+        if not horarios_dia:
+            return []
+        
+        hora_inicio_str, hora_fin_str = horarios_dia
+        
+        # Convertir a datetime
+        tz = pytz.timezone('America/Argentina/Buenos_Aires')
+        ahora = datetime.now(tz)
+        
+        hora_inicio = tz.localize(
+            datetime.combine(dia_seleccionado, datetime.min.time()).replace(
+                hour=int(hora_inicio_str.split(':')[0]),
+                minute=int(hora_inicio_str.split(':')[1])
+            )
+        )
+        
+        hora_fin = tz.localize(
+            datetime.combine(dia_seleccionado, datetime.min.time()).replace(
+                hour=int(hora_fin_str.split(':')[0]),
+                minute=int(hora_fin_str.split(':')[1])
+            )
+        )
+        
+        # Si es hoy, ajustar hora_inicio
+        if dia_seleccionado == ahora.date():
+            if ahora > hora_inicio:
+                minutos = (ahora.minute // 30 + 1) * 30
+                if minutos >= 60:
+                    hora_inicio = ahora.replace(hour=ahora.hour + 1, minute=0, second=0, microsecond=0)
+                else:
+                    hora_inicio = ahora.replace(minute=minutos, second=0, microsecond=0)
+        
+        # Obtener eventos ocupados del calendario
+        service = get_calendar_service(peluqueria_key)
+        calendar_id = get_calendar_config(peluqueria_key)
+        
+        if not service:
+            return []
+        
+        eventos = service.events().list(
+            calendarId=calendar_id,
+            timeMin=hora_inicio.isoformat(),
+            timeMax=hora_fin.isoformat(),
+            singleEvents=True,
+            orderBy='startTime'
+        ).execute()
+        
+        # Filtrar solo los eventos de este peluquero
+        ocupados = []
+        if "items" in eventos:
+            for event in eventos["items"]:
+                try:
+                    # Verificar si el evento es de este peluquero
+                    descripcion = event.get("description", "")
+                    if f"Peluquero: {peluquero['nombre']}" in descripcion:
+                        start = datetime.fromisoformat(event["start"]["dateTime"].replace("Z", "+00:00"))
+                        ocupados.append(start)
+                except Exception:
+                    continue
+        
+        # Generar horarios libres
+        horarios_libres = []
+        horario = hora_inicio
+        while horario < hora_fin:
+            if not esta_ocupado(horario, ocupados):
+                horarios_libres.append(horario)
+            horario += timedelta(minutes=30)
+        
+        return horarios_libres
+        
+    except Exception as e:
+        print(f"❌ Error obteniendo horarios de peluquero: {e}")
+        return []
 
 # ==================== GOOGLE TOKEN ====================
 
@@ -345,7 +473,7 @@ def cancelar_turno(peluqueria_key, event_id):
         print(f"❌ Error cancelando turno: {e}")
         return False
 
-def crear_reserva_en_calendar(peluqueria_key, fecha_hora, cliente, servicio, telefono):
+def crear_reserva_en_calendar(peluqueria_key, fecha_hora, cliente, servicio, telefono, peluquero=None):
     """Crea un evento en Google Calendar al confirmar turno"""
     try:
         if peluqueria_key not in PELUQUERIAS:
@@ -357,8 +485,17 @@ def crear_reserva_en_calendar(peluqueria_key, fecha_hora, cliente, servicio, tel
         if not service:
             return False
 
+        # Descripción con o sin peluquero
+        descripcion = f"Cliente: {cliente}\nTel: {telefono}"
+        if peluquero:
+            descripcion += f"\nPeluquero: {peluquero['nombre']}"
+        
+        summary = f"Turno - {servicio} - {cliente}"
+        if peluquero:
+            summary = f"{peluquero['nombre']} - {servicio} - {cliente}"
+
         evento = {
-            'summary': f"Turno - {servicio} - {cliente}",
+            'summary': summary,
             'start': {
                 'dateTime': fecha_hora.isoformat(),
                 'timeZone': 'America/Argentina/Buenos_Aires'
@@ -367,7 +504,7 @@ def crear_reserva_en_calendar(peluqueria_key, fecha_hora, cliente, servicio, tel
                 'dateTime': (fecha_hora + timedelta(minutes=30)).isoformat(),
                 'timeZone': 'America/Argentina/Buenos_Aires'
             },
-            'description': f"Cliente: {cliente}\nTel: {telefono}"
+            'description': descripcion
         }
 
         service.events().insert(
@@ -380,7 +517,6 @@ def crear_reserva_en_calendar(peluqueria_key, fecha_hora, cliente, servicio, tel
     except Exception as e:
         print(f"❌ Error creando reserva: {e}")
         return False
-
 
 # ------------------- RECORDATORIOS ---------------------
 
@@ -810,6 +946,8 @@ def procesar_mensaje(numero_limpio, texto, estado, peluqueria_key, numero):
             procesar_faq(numero)
         elif texto == "7":  # Ubicación
             procesar_ubicacion(config, numero)
+        elif estado == "seleccionar_peluquero":
+            procesar_seleccion_peluquero(numero_limpio, texto, peluqueria_key, numero)        
         elif texto == "0":  # Salir
             procesar_salir(config, numero_limpio, numero)
         else:
@@ -842,34 +980,55 @@ def procesar_mensaje(numero_limpio, texto, estado, peluqueria_key, numero):
 # ==================== OPCIÓN 1: PEDIR TURNO ====================
 
 def procesar_pedir_turno_inicio(numero_limpio, peluqueria_key, numero):
-    """Inicia el flujo de pedir turno"""
-    hoy = datetime.now().date()
-    dias = []
-
-    for i in range(7):
-        dia = hoy + timedelta(days=i)
-        if dia.weekday() != 6:  # excluir domingos
-            dias.append(dia)
-
+    """Inicia el flujo de pedir turno - ahora pregunta primero por peluquero"""
+    config = PELUQUERIAS.get(peluqueria_key, {})
+    peluqueros = config.get("peluqueros", [])
+    
+    # Si NO hay peluqueros configurados, flujo normal
+    if not peluqueros:
+        # Flujo original (seleccionar día directamente)
+        hoy = datetime.now().date()
+        dias = []
+        for i in range(7):
+            dia = hoy + timedelta(days=i)
+            if dia.weekday() != 6:
+                dias.append(dia)
+        
+        with user_states_lock:
+            user_states[numero_limpio]["dias"] = dias
+            user_states[numero_limpio]["paso"] = "seleccionar_dia"
+        
+        dias_espanol = {0: 'Lun', 1: 'Mar', 2: 'Mié', 3: 'Jue', 4: 'Vie', 5: 'Sáb', 6: 'Dom'}
+        lista = "\n".join(
+            f"{i+1}️⃣ {dias_espanol[d.weekday()]} {d.strftime('%d/%m')}"
+            for i, d in enumerate(dias)
+        )
+        enviar_mensaje("📅 Elegí el día para tu turno:\n\n" + lista, numero)
+        return
+    
+    # Si HAY peluqueros, preguntar primero
     with user_states_lock:
-        user_states[numero_limpio]["dias"] = dias
-        user_states[numero_limpio]["paso"] = "seleccionar_dia"
-
-    dias_espanol = {
-        0: 'Lun', 1: 'Mar', 2: 'Mié', 3: 'Jue', 
-        4: 'Vie', 5: 'Sáb', 6: 'Dom'
-    }
+        user_states[numero_limpio]["paso"] = "seleccionar_peluquero"
     
-    lista = "\n".join(
-        f"{i+1}️⃣ {dias_espanol[d.weekday()]} {d.strftime('%d/%m')}"
-        for i, d in enumerate(dias)
+    # Mostrar lista de peluqueros con sus especialidades
+    lista_peluqueros = []
+    for i, peluquero in enumerate(peluqueros):
+        especialidades = ", ".join(peluquero.get("especialidades", []))
+        dias = ", ".join([d.capitalize()[:3] for d in peluquero.get("dias_trabajo", [])])
+        
+        lista_peluqueros.append(
+            f"{i+1}️⃣ *{peluquero['nombre']}*\n"
+            f"   ✂️ {especialidades}\n"
+            f"   📅 {dias}"
+        )
+    
+    mensaje = (
+        "👤 *¿Con qué peluquero querés tu turno?*\n\n" +
+        "\n\n".join(lista_peluqueros) +
+        "\n\nElegí un número:"
     )
     
-    enviar_mensaje(
-        "📅 Elegí el día para tu turno:\n\n" + lista,
-        numero
-    )
-
+    enviar_mensaje(mensaje, numero)
 
 def procesar_seleccion_dia(numero_limpio, texto, peluqueria_key, numero):
     """Procesa la selección del día"""
@@ -878,14 +1037,24 @@ def procesar_seleccion_dia(numero_limpio, texto, peluqueria_key, numero):
         
         with user_states_lock:
             dias = user_states[numero_limpio].get("dias", [])
+            peluquero = user_states[numero_limpio].get("peluquero")
 
         if 0 <= index < len(dias):
             dia_elegido = dias[index]
             
-            horarios = obtener_horarios_disponibles(peluqueria_key, dia_elegido)
+            # Si hay peluquero seleccionado, usar sus horarios
+            if peluquero:
+                horarios = obtener_horarios_peluquero(peluqueria_key, dia_elegido, peluquero["id"])
+            else:
+                # Flujo normal sin peluquero
+                horarios = obtener_horarios_disponibles(peluqueria_key, dia_elegido)
 
             if not horarios:
-                enviar_mensaje("Ese día no tiene horarios disponibles 😕\n\nEscribí *menu* para volver.", numero)
+                enviar_mensaje(
+                    "Ese día no tiene horarios disponibles 😕\n\n"
+                    "Escribí *menu* para volver.",
+                    numero
+                )
                 return
 
             with user_states_lock:
@@ -898,8 +1067,12 @@ def procesar_seleccion_dia(numero_limpio, texto, peluqueria_key, numero):
                 for i, h in enumerate(horarios)
             )
 
+            mensaje_extra = ""
+            if peluquero:
+                mensaje_extra = f"\n👤 Con: *{peluquero['nombre']}*\n"
+
             enviar_mensaje(
-                f"🕒 Horarios disponibles:\n\n{lista}\n\nElegí un número",
+                f"🕒 Horarios disponibles:{mensaje_extra}\n{lista}\n\nElegí un número",
                 numero
             )
         else:
@@ -964,22 +1137,27 @@ def procesar_seleccion_servicio(numero_limpio, texto, peluqueria_key, numero):
         if 0 <= index < len(servicios):
             servicio_seleccionado = servicios[index]["nombre"]
     except ValueError:
-        # Si no es número, usar el texto que escribió
         servicio_seleccionado = texto.title()
     
     with user_states_lock:
         fecha_hora = user_states[numero_limpio]["fecha_hora"]
         cliente = user_states[numero_limpio]["cliente"]
+        peluquero = user_states[numero_limpio].get("peluquero")  # ✅ Obtener peluquero
     
     telefono = numero_limpio
 
-    # Crear reserva en Google Calendar
-    if crear_reserva_en_calendar(peluqueria_key, fecha_hora, cliente, servicio_seleccionado, telefono):
+    # Crear reserva en Google Calendar con peluquero
+    if crear_reserva_en_calendar(peluqueria_key, fecha_hora, cliente, servicio_seleccionado, telefono, peluquero):
         fecha_formateada = formatear_fecha_completa(fecha_hora)
+        
+        mensaje_peluquero = ""
+        if peluquero:
+            mensaje_peluquero = f"👤 Con: *{peluquero['nombre']}*\n"
         
         enviar_mensaje(
             f"✅ ¡Listo {cliente}! Turno reservado:\n\n"
             f"📅 {fecha_formateada}\n"
+            f"{mensaje_peluquero}"
             f"✂️ Servicio: {servicio_seleccionado}\n"
             f"📍 {config['nombre']}\n\n"
             f"¡Te esperamos! 💈\n\n"
@@ -995,8 +1173,6 @@ def procesar_seleccion_servicio(numero_limpio, texto, peluqueria_key, numero):
 
     with user_states_lock:
         user_states[numero_limpio]["paso"] = "menu"
-
-
 # ==================== OPCIÓN 2: VER TURNOS ====================
 
 def procesar_ver_turnos(numero_limpio, peluqueria_key, numero):
@@ -1230,6 +1406,64 @@ Escribí *menu* para volver"""
     
     enviar_mensaje(mensaje, numero)
 
+# ==================== OPCIÓN SELECCIÓN DE PELUQUEROS ====================
+
+def procesar_seleccion_peluquero(numero_limpio, texto, peluqueria_key, numero):
+    """Procesa la selección del peluquero"""
+    try:
+        config = PELUQUERIAS.get(peluqueria_key, {})
+        peluqueros = config.get("peluqueros", [])
+        
+        index = int(texto) - 1
+        
+        if 0 <= index < len(peluqueros):
+            peluquero_seleccionado = peluqueros[index]
+            
+            with user_states_lock:
+                user_states[numero_limpio]["peluquero"] = peluquero_seleccionado
+                user_states[numero_limpio]["paso"] = "seleccionar_dia"
+            
+            # Ahora mostrar días disponibles para este peluquero
+            hoy = datetime.now().date()
+            dias = []
+            dias_semana_map = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
+            
+            for i in range(7):
+                dia = hoy + timedelta(days=i)
+                dia_nombre = dias_semana_map[dia.weekday()]
+                
+                # Verificar si el peluquero trabaja ese día
+                if dia_nombre in peluquero_seleccionado.get("dias_trabajo", []):
+                    dias.append(dia)
+            
+            if not dias:
+                enviar_mensaje(
+                    f"😕 {peluquero_seleccionado['nombre']} no tiene días disponibles esta semana.\n\n"
+                    "Escribí *menu* para elegir otro peluquero.",
+                    numero
+                )
+                with user_states_lock:
+                    user_states[numero_limpio]["paso"] = "menu"
+                return
+            
+            with user_states_lock:
+                user_states[numero_limpio]["dias"] = dias
+            
+            dias_espanol = {0: 'Lun', 1: 'Mar', 2: 'Mié', 3: 'Jue', 4: 'Vie', 5: 'Sáb', 6: 'Dom'}
+            lista = "\n".join(
+                f"{i+1}️⃣ {dias_espanol[d.weekday()]} {d.strftime('%d/%m')}"
+                for i, d in enumerate(dias)
+            )
+            
+            enviar_mensaje(
+                f"📅 Días disponibles de *{peluquero_seleccionado['nombre']}*:\n\n{lista}\n\nElegí un número:",
+                numero
+            )
+        else:
+            enviar_mensaje("❌ Número inválido. Elegí uno de la lista.", numero)
+    
+    except ValueError:
+        enviar_mensaje("❌ Debe ser un número.", numero)
 
 # ==================== OPCIÓN 0: SALIR ====================
 
