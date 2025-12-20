@@ -641,6 +641,21 @@ def enviar_recordatorio(turno):
         # Obtener nombre de la peluquería
         peluqueria_nombre = PELUQUERIAS.get(turno.get("peluqueria", "cliente_001"), {}).get("nombre", "Peluquería")
         
+        # ✅ NUEVO: Extraer nombre del peluquero del resumen si existe
+        resumen = turno.get("resumen", "Turno")
+        nombre_peluquero = None
+        
+        # Formato esperado: "Carlos - Corte clásico - Juan"
+        if " - " in resumen:
+            partes = resumen.split(" - ")
+            if len(partes) >= 2:
+                # Verificar si la primera parte es un nombre de peluquero
+                config = PELUQUERIAS.get(turno.get("peluqueria", "cliente_001"), {})
+                for p in config.get("peluqueros", []):
+                    if p["nombre"] == partes[0]:
+                        nombre_peluquero = p["nombre"]
+                        break
+        
         fecha = turno["inicio"].strftime("%d/%m/%Y")
         hora = turno["inicio"].strftime("%H:%M")
         
@@ -649,13 +664,19 @@ def enviar_recordatorio(turno):
         diferencia = turno["inicio"] - ahora
         horas_faltantes = int(diferencia.total_seconds() / 3600)
         
+        # ✅ Agregar info del peluquero al mensaje
+        info_peluquero = ""
+        if nombre_peluquero:
+            info_peluquero = f"👤 Con: {nombre_peluquero}\n"
+        
         if horas_faltantes >= 20:  # Recordatorio de 24 horas
             mensaje = (
                 f"🔔 *Recordatorio de turno*\n\n"
                 f"¡Hola! Te recordamos que tenés turno mañana:\n\n"
                 f"📅 Fecha: {fecha}\n"
                 f"🕒 Hora: {hora}\n"
-                f"✂️ {turno['resumen']}\n"
+                f"{info_peluquero}"
+                f"✂️ {resumen}\n"
                 f"📍 {peluqueria_nombre}\n\n"
                 f"¡Te esperamos! 💈\n\n"
                 f"_Si necesitás cancelar, escribí *menu* y elegí la opción 3_"
@@ -665,9 +686,9 @@ def enviar_recordatorio(turno):
                 f"⏰ *Recordatorio urgente*\n\n"
                 f"Tu turno es en {horas_faltantes} horas:\n\n"
                 f"🕒 Hora: {hora}\n"
+                f"{info_peluquero}"
                 f"📍 {peluqueria_nombre}\n\n"
-                f"¡Nos vemos pronto! 💈\n\n"
-                f"(No hace falta que contestes)"
+                f"¡Nos vemos pronto! 💈"
             )
         else:
             return
@@ -758,6 +779,49 @@ def enviar_mensaje(texto, numero):
     except Exception as e:
         print(f"❌ Error enviando mensaje: {e}")
         return False
+
+
+def notificar_peluquero(peluquero, cliente, servicio, fecha_hora, config):
+    """
+    Envía notificación al peluquero cuando se reserva un turno con él
+    """
+    try:
+        # Verificar que el peluquero tenga número de teléfono
+        telefono_peluquero = peluquero.get("telefono")
+        
+        if not telefono_peluquero:
+            print(f"⚠️ Peluquero {peluquero['nombre']} no tiene teléfono configurado")
+            return False
+        
+        # Formatear fecha y hora
+        fecha_formateada = formatear_fecha_espanol(fecha_hora)
+        hora = fecha_hora.strftime("%H:%M")
+        
+        # Mensaje para el peluquero
+        mensaje = (
+            f"📅 *Nuevo turno reservado*\n\n"
+            f"👤 Cliente: {cliente}\n"
+            f"✂️ Servicio: {servicio}\n"
+            f"📆 Fecha: {fecha_formateada}\n"
+            f"⏰ Hora: {hora}\n"
+            f"📍 {config['nombre']}\n\n"
+            f"¡Te esperamos! 💈"
+        )
+        
+        # Enviar mensaje
+        resultado = enviar_mensaje(mensaje, telefono_peluquero)
+        
+        if resultado:
+            print(f"✅ Notificación enviada a {peluquero['nombre']} ({telefono_peluquero})")
+        else:
+            print(f"❌ Error enviando notificación a {peluquero['nombre']}")
+        
+        return resultado
+        
+    except Exception as e:
+        print(f"❌ Error en notificar_peluquero: {e}")
+        return False
+
 
 def detectar_peluqueria(to_number):
     """
@@ -1161,7 +1225,7 @@ def procesar_seleccion_servicio(numero_limpio, texto, peluqueria_key, numero):
     config = PELUQUERIAS[peluqueria_key]
     
     with user_states_lock:
-        # ✅ Usar los servicios filtrados que guardamos
+        # Usar los servicios filtrados que guardamos
         servicios = user_states[numero_limpio].get("servicios_disponibles", config.get("servicios", []))
         fecha_hora = user_states[numero_limpio]["fecha_hora"]
         cliente = user_states[numero_limpio]["cliente"]
@@ -1198,6 +1262,7 @@ def procesar_seleccion_servicio(numero_limpio, texto, peluqueria_key, numero):
         if peluquero:
             mensaje_peluquero = f"👤 Con: *{peluquero['nombre']}*\n"
         
+        # ✅ Enviar confirmación al cliente
         enviar_mensaje(
             f"✅ ¡Listo {cliente}! Turno reservado:\n\n"
             f"📅 {fecha_formateada}\n"
@@ -1208,6 +1273,11 @@ def procesar_seleccion_servicio(numero_limpio, texto, peluqueria_key, numero):
             f"Recibirás recordatorios automáticos.",
             numero
         )
+        
+        # ✅ NUEVO: Notificar al peluquero si tiene uno asignado
+        if peluquero:
+            notificar_peluquero(peluquero, cliente, servicio_seleccionado, fecha_hora, config)
+        
     else:
         enviar_mensaje(
             "❌ Hubo un error al crear la reserva. Por favor intentá de nuevo.\n\n"
@@ -1363,32 +1433,109 @@ def procesar_seleccion_turno_cancelar(numero_limpio, texto, peluqueria_key, nume
 
 def procesar_confirmacion_cancelacion(numero_limpio, texto, peluqueria_key, numero):
     """Procesa la confirmación de cancelación"""
-    if texto in ["si", "sí"]:
-        with user_states_lock:
-            turno = user_states[numero_limpio].get("turno_a_cancelar")
-        
-        if turno and cancelar_turno(peluqueria_key, turno["id"]):
-            fecha = turno["inicio"].strftime("%d/%m/%Y")
-            hora = turno["inicio"].strftime("%H:%M")
+    try:
+        if texto in ["si", "sí", "s"]:
+            # Obtener el turno a cancelar
+            with user_states_lock:
+                turno = user_states[numero_limpio].get("turno_a_cancelar")
             
+            if not turno:
+                enviar_mensaje(
+                    "❌ No se encontró el turno a cancelar.\n\n"
+                    "Escribí *menu* para volver.",
+                    numero
+                )
+                with user_states_lock:
+                    user_states[numero_limpio]["paso"] = "menu"
+                return
+            
+            # ✅ NUEVO: Obtener info del turno antes de cancelar
+            config = PELUQUERIAS.get(peluqueria_key, {})
+            
+            # Extraer nombre del peluquero del resumen del turno si existe
+            # Formato: "Carlos - Corte clásico - Juan"
+            resumen = turno.get("resumen", "")
+            nombre_peluquero = None
+            
+            for peluquero in config.get("peluqueros", []):
+                if peluquero["nombre"] in resumen:
+                    nombre_peluquero = peluquero["nombre"]
+                    telefono_peluquero = peluquero.get("telefono")
+                    break
+            
+            # Intentar cancelar el turno
+            if cancelar_turno(peluqueria_key, turno["id"]):
+                try:
+                    fecha = turno["inicio"].strftime("%d/%m/%Y")
+                    hora = turno["inicio"].strftime("%H:%M")
+                    
+                    # Enviar confirmación al cliente
+                    enviar_mensaje(
+                        f"✅ Turno cancelado exitosamente\n\n"
+                        f"📅 {fecha} a las {hora}\n\n"
+                        f"¡Esperamos verte pronto! 💈",
+                        numero
+                    )
+                    
+                    # ✅ NUEVO: Notificar al peluquero sobre la cancelación
+                    if nombre_peluquero and telefono_peluquero:
+                        # Extraer nombre del cliente del resumen
+                        partes = resumen.split(" - ")
+                        nombre_cliente = partes[-1] if len(partes) > 0 else "Cliente"
+                        
+                        mensaje_cancelacion = (
+                            f"❌ *Turno cancelado*\n\n"
+                            f"👤 Cliente: {nombre_cliente}\n"
+                            f"📆 Fecha: {fecha}\n"
+                            f"⏰ Hora: {hora}\n"
+                            f"📍 {config['nombre']}"
+                        )
+                        
+                        enviar_mensaje(mensaje_cancelacion, telefono_peluquero)
+                        print(f"✅ Notificación de cancelación enviada a {nombre_peluquero}")
+                    
+                except Exception as e:
+                    print(f"❌ Error en notificación de cancelación: {e}")
+                    enviar_mensaje(
+                        "✅ Turno cancelado exitosamente\n\n"
+                        "¡Esperamos verte pronto! 💈",
+                        numero
+                    )
+            else:
+                enviar_mensaje(
+                    "❌ Hubo un error al cancelar el turno.\n\n"
+                    "Por favor intentá más tarde o contacta al negocio.",
+                    numero
+                )
+            
+            # Resetear estado
+            with user_states_lock:
+                user_states[numero_limpio]["paso"] = "menu"
+            
+        elif texto in ["no", "n"]:
             enviar_mensaje(
-                f"✅ Turno cancelado exitosamente\n\n"
-                f"📅 {fecha} a las {hora}\n\n"
-                f"¡Esperamos verte pronto! 💈",
+                "✅ Cancelación abortada. Tu turno sigue reservado.\n\n"
+                "Escribí *menu* para volver.",
                 numero
             )
+            with user_states_lock:
+                user_states[numero_limpio]["paso"] = "menu"
         else:
-            enviar_mensaje("❌ Hubo un error al cancelar. Intentá más tarde.", numero)
+            enviar_mensaje("⚠️ Respondé *SI* o *NO*", numero)
+            
+    except Exception as e:
+        print(f"❌ ERROR en procesar_confirmacion_cancelacion: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        enviar_mensaje(
+            "❌ Ocurrió un error.\n\n"
+            "Escribí *menu* para volver.",
+            numero
+        )
         
         with user_states_lock:
             user_states[numero_limpio]["paso"] = "menu"
-        
-    elif texto == "no":
-        enviar_mensaje("✅ Cancelación abortada. Tu turno sigue reservado.\n\nEscribí *menu* para volver.", numero)
-        with user_states_lock:
-            user_states[numero_limpio]["paso"] = "menu"
-    else:
-        enviar_mensaje("⚠️ Respondé *SI* o *NO*", numero)
 
 
 # ==================== OPCIÓN 4: SERVICIOS ====================

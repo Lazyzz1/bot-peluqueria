@@ -160,6 +160,28 @@ def agregar_cliente():
             
             id_peluquero = nombre_peluquero.lower().replace(" ", "_")
             
+            # ✅ NUEVO: Pedir teléfono del peluquero
+            print(f"\n  Teléfono de {nombre_peluquero}:")
+            print("  Formato: +5491123456789 (con código de país)")
+            print("  Déjalo vacío si no quiere recibir notificaciones")
+            telefono_peluquero = input("  Teléfono: ").strip()
+            
+            # Especialidades
+            print(f"\n  Especialidades de {nombre_peluquero}:")
+            # ... resto del código de especialidades
+            
+            peluquero = {
+                "id": id_peluquero,
+                "nombre": nombre_peluquero,
+                "telefono": telefono_peluquero,  # ✅ NUEVO CAMPO
+                "especialidades": especialidades,
+                "dias_trabajo": dias_trabajo,
+                "horarios": horarios
+            }
+            
+            peluqueros.append(peluquero)
+            print(f"  ✅ '{nombre_peluquero}' agregado")
+
             # Especialidades
             print(f"\n  Especialidades de {nombre_peluquero}:")
             print("  Servicios disponibles:")

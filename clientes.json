@@ -15,6 +15,7 @@
       {
         "id": "carlos",
         "nombre": "Carlos",
+        "telefono": "+5491123456789",
         "especialidades": ["Corte clásico", "Barba y bigote"],
         "dias_trabajo": ["lunes", "martes", "miercoles", "jueves", "viernes"],
         "horarios": {
@@ -28,6 +29,7 @@
       {
         "id": "laura",
         "nombre": "Laura",
+        "telefono": "+5491187654321",
         "especialidades": ["Corte clásico", "Corte moderno", "Tintura"],
         "dias_trabajo": ["lunes", "miercoles", "viernes", "sabado"],
         "horarios": {
@@ -40,6 +42,7 @@
       {
         "id": "miguel",
         "nombre": "Miguel",
+        "telefono": "+5491199887766",
         "especialidades": ["Corte clásico", "Corte moderno"],
         "dias_trabajo": ["martes", "jueves", "sabado"],
         "horarios": {
