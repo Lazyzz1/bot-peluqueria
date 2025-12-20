@@ -945,14 +945,14 @@ def procesar_mensaje(numero_limpio, texto, estado, peluqueria_key, numero):
         elif texto == "6":  # FAQ
             procesar_faq(numero)
         elif texto == "7":  # Ubicación
-            procesar_ubicacion(config, numero)
-        elif estado == "seleccionar_peluquero":
-            procesar_seleccion_peluquero(numero_limpio, texto, peluqueria_key, numero)        
+            procesar_ubicacion(config, numero)    
         elif texto == "0":  # Salir
             procesar_salir(config, numero_limpio, numero)
         else:
             enviar_mensaje("❓ No entendí. Escribí *menu* para ver las opciones.", numero)
-    
+    elif estado == "seleccionar_peluquero":
+            procesar_seleccion_peluquero(numero_limpio, texto, peluqueria_key, numero)    
+            
     # FLUJO PEDIR TURNO
     elif estado == "seleccionar_dia":
         procesar_seleccion_dia(numero_limpio, texto, peluqueria_key, numero)
