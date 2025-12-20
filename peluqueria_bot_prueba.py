@@ -396,61 +396,67 @@ def obtener_turnos_cliente(peluqueria_key, telefono):
         tz = pytz.timezone('America/Argentina/Buenos_Aires')
         ahora = datetime.now(tz)
         
-        eventos = service.events().list(
-            calendarId=calendar_id,
-            timeMin=ahora.isoformat(),
-            timeMax=(ahora + timedelta(days=30)).isoformat(),
-            singleEvents=True,
-            orderBy='startTime'
-        ).execute()
+        try:
+            eventos = service.events().list(
+                calendarId=calendar_id,
+                timeMin=ahora.isoformat(),
+                timeMax=(ahora + timedelta(days=30)).isoformat(),
+                singleEvents=True,
+                orderBy='startTime'
+            ).execute()
+        except Exception as e:
+            print(f"❌ Error obteniendo eventos: {e}")
+            return []
+        
+        turnos_cliente = []
+        
+        # Limpiar el teléfono de búsqueda
+        telefono_busqueda = telefono.replace('whatsapp:', '').replace('+', '').replace(' ', '').replace('-', '')
+        
+        if "items" in eventos:
+            for event in eventos["items"]:
+                try:
+                    descripcion = event.get("description", "")
+                    summary = event.get("summary", "Sin título")
+                    
+                    # Limpiar la descripción
+                    descripcion_limpia = descripcion.replace('+', '').replace(' ', '').replace('-', '').replace('Tel:', '').replace('\n', '').replace('\r', '')
+                    
+                    # Búsqueda flexible
+                    if telefono_busqueda in descripcion_limpia:
+                        inicio_str = event["start"].get("dateTime", event["start"].get("date"))
+                        
+                        if not inicio_str:
+                            continue
+                        
+                        # Parsear fecha con timezone
+                        if inicio_str.endswith('Z'):
+                            inicio_utc = datetime.fromisoformat(inicio_str.replace("Z", "+00:00"))
+                            inicio_arg = inicio_utc.astimezone(tz)
+                        else:
+                            inicio_arg = datetime.fromisoformat(inicio_str)
+                            if inicio_arg.tzinfo is None:
+                                inicio_arg = tz.localize(inicio_arg)
+                            else:
+                                inicio_arg = inicio_arg.astimezone(tz)
+                        
+                        turno_info = {
+                            "id": event["id"],
+                            "resumen": summary,
+                            "inicio": inicio_arg
+                        }
+                        turnos_cliente.append(turno_info)
+                except Exception as e:
+                    print(f"❌ Error procesando evento individual: {e}")
+                    continue
+        
+        return turnos_cliente
         
     except Exception as e:
-        print(f"❌ Error obteniendo eventos: {e}")
+        print(f"❌ Error general en obtener_turnos_cliente: {e}")
+        import traceback
+        traceback.print_exc()
         return []
-    
-    turnos_cliente = []
-    
-    # Limpiar el teléfono de búsqueda
-    telefono_busqueda = telefono.replace('whatsapp:', '').replace('+', '').replace(' ', '').replace('-', '')
-    
-    if "items" in eventos:
-        for event in eventos["items"]:
-            descripcion = event.get("description", "")
-            summary = event.get("summary", "Sin título")
-            
-            # Limpiar la descripción
-            descripcion_limpia = descripcion.replace('+', '').replace(' ', '').replace('-', '').replace('Tel:', '').replace('\n', '').replace('\r', '')
-            
-            # Búsqueda flexible
-            if telefono_busqueda in descripcion_limpia:
-                try:
-                    inicio_str = event["start"].get("dateTime", event["start"].get("date"))
-                    
-                    if not inicio_str:
-                        continue
-                    
-                    # Parsear fecha con timezone
-                    if inicio_str.endswith('Z'):
-                        inicio_utc = datetime.fromisoformat(inicio_str.replace("Z", "+00:00"))
-                        inicio_arg = inicio_utc.astimezone(tz)
-                    else:
-                        inicio_arg = datetime.fromisoformat(inicio_str)
-                        if inicio_arg.tzinfo is None:
-                            inicio_arg = tz.localize(inicio_arg)
-                        else:
-                            inicio_arg = inicio_arg.astimezone(tz)
-                    
-                    turno_info = {
-                        "id": event["id"],
-                        "resumen": summary,
-                        "inicio": inicio_arg
-                    }
-                    turnos_cliente.append(turno_info)
-                except Exception as e:
-                    print(f"❌ Error procesando evento: {e}")
-                    continue
-    
-    return turnos_cliente
 
 def cancelar_turno(peluqueria_key, event_id):
     """Cancela un turno en Google Calendar"""
@@ -952,7 +958,7 @@ def procesar_mensaje(numero_limpio, texto, estado, peluqueria_key, numero):
             enviar_mensaje("❓ No entendí. Escribí *menu* para ver las opciones.", numero)
     elif estado == "seleccionar_peluquero":
             procesar_seleccion_peluquero(numero_limpio, texto, peluqueria_key, numero)    
-            
+
     # FLUJO PEDIR TURNO
     elif estado == "seleccionar_dia":
         procesar_seleccion_dia(numero_limpio, texto, peluqueria_key, numero)
@@ -1105,18 +1111,43 @@ def procesar_nombre_cliente(numero_limpio, texto, peluqueria_key, numero):
     with user_states_lock:
         user_states[numero_limpio]["cliente"] = texto.title()
         user_states[numero_limpio]["paso"] = "servicio"
+        peluquero = user_states[numero_limpio].get("peluquero")  # ✅ Obtener peluquero
     
     config = PELUQUERIAS[peluqueria_key]
     servicios = config.get("servicios", [])
     
-    if servicios:
+    # ✅ FILTRAR servicios según especialidades del peluquero
+    if peluquero:
+        especialidades = peluquero.get("especialidades", [])
+        # Filtrar solo los servicios que el peluquero hace
+        servicios_filtrados = [s for s in servicios if s["nombre"] in especialidades]
+        
+        if not servicios_filtrados:
+            # Si por alguna razón no hay servicios filtrados, mostrar todos
+            servicios_a_mostrar = servicios
+        else:
+            servicios_a_mostrar = servicios_filtrados
+    else:
+        # Si no hay peluquero, mostrar todos
+        servicios_a_mostrar = servicios
+    
+    if servicios_a_mostrar:
         lista = []
-        for i, servicio in enumerate(servicios):
+        for i, servicio in enumerate(servicios_a_mostrar):
             precio_formateado = f"${servicio['precio']:,}".replace(',', '.')
             lista.append(f"{i+1}️⃣ {servicio['nombre']} - {precio_formateado}")
         
+        # Guardar los servicios filtrados en el estado
+        with user_states_lock:
+            user_states[numero_limpio]["servicios_disponibles"] = servicios_a_mostrar
+        
+        mensaje_peluquero = ""
+        if peluquero:
+            mensaje_peluquero = f"Con *{peluquero['nombre']}*\n\n"
+        
         mensaje = (
-            "📋 *¿Qué servicio querés?*\n\n" +
+            f"📋 *¿Qué servicio querés?*\n\n"
+            f"{mensaje_peluquero}" +
             "\n".join(lista) +
             "\n\nElegí un número o escribe el nombre del servicio:"
         )
@@ -1124,11 +1155,17 @@ def procesar_nombre_cliente(numero_limpio, texto, peluqueria_key, numero):
     else:
         enviar_mensaje("📋 ¿Qué servicio querés?\nEj: Corte, Tintura, Barba", numero)
 
-
 def procesar_seleccion_servicio(numero_limpio, texto, peluqueria_key, numero):
     """Procesa la selección del servicio y crea la reserva"""
     config = PELUQUERIAS[peluqueria_key]
-    servicios = config.get("servicios", [])
+    
+    with user_states_lock:
+        # ✅ Usar los servicios filtrados que guardamos
+        servicios = user_states[numero_limpio].get("servicios_disponibles", config.get("servicios", []))
+        fecha_hora = user_states[numero_limpio]["fecha_hora"]
+        cliente = user_states[numero_limpio]["cliente"]
+        peluquero = user_states[numero_limpio].get("peluquero")
+    
     servicio_seleccionado = None
     
     # Intentar parsear como número
@@ -1137,12 +1174,18 @@ def procesar_seleccion_servicio(numero_limpio, texto, peluqueria_key, numero):
         if 0 <= index < len(servicios):
             servicio_seleccionado = servicios[index]["nombre"]
     except ValueError:
+        # Si no es número, usar el texto que escribió
         servicio_seleccionado = texto.title()
     
-    with user_states_lock:
-        fecha_hora = user_states[numero_limpio]["fecha_hora"]
-        cliente = user_states[numero_limpio]["cliente"]
-        peluquero = user_states[numero_limpio].get("peluquero")  # ✅ Obtener peluquero
+    if not servicio_seleccionado:
+        enviar_mensaje(
+            "❌ Servicio no válido.\n\n"
+            "Escribí *menu* para volver a empezar.",
+            numero
+        )
+        with user_states_lock:
+            user_states[numero_limpio]["paso"] = "menu"
+        return
     
     telefono = numero_limpio
 
@@ -1200,11 +1243,17 @@ def procesar_ver_turnos(numero_limpio, peluqueria_key, numero):
 
 def procesar_cancelar_turno_inicio(numero_limpio, peluqueria_key, numero):
     """Inicia el flujo de cancelar turno"""
-    turnos = obtener_turnos_cliente(peluqueria_key, numero_limpio)
-    
-    if not turnos:
-        enviar_mensaje("🔭 No tenés turnos para cancelar.\n\nEscribí *menu* para volver.", numero)
-    else:
+    try:
+        turnos = obtener_turnos_cliente(peluqueria_key, numero_limpio)
+        
+        if not turnos:
+            enviar_mensaje(
+                "🔭 No tenés turnos para cancelar.\n\n"
+                "Escribí *menu* para volver.",
+                numero
+            )
+            return
+        
         with user_states_lock:
             user_states[numero_limpio]["turnos"] = turnos
             user_states[numero_limpio]["paso"] = "seleccionar_turno_cancelar"
@@ -1213,11 +1262,24 @@ def procesar_cancelar_turno_inicio(numero_limpio, peluqueria_key, numero):
         for i, turno in enumerate(turnos):
             fecha = turno["inicio"].strftime("%d/%m/%Y")
             hora = turno["inicio"].strftime("%H:%M")
-            lista.append(f"{i+1}️⃣ {fecha} a las {hora}")
+            lista.append(f"{i+1}️⃣ {fecha} a las {hora}\n   {turno['resumen']}")
         
-        mensaje = "❌ *Selecciona el turno a cancelar:*\n\n" + "\n".join(lista) + "\n\n0️⃣ Volver al menú"
+        mensaje = (
+            "❌ *Selecciona el turno a cancelar:*\n\n" + 
+            "\n\n".join(lista) + 
+            "\n\n0️⃣ Volver al menú"
+        )
         enviar_mensaje(mensaje, numero)
-
+        
+    except Exception as e:
+        print(f"❌ Error en procesar_cancelar_turno_inicio: {e}")
+        import traceback
+        traceback.print_exc()
+        enviar_mensaje(
+            "❌ Hubo un error al buscar tus turnos.\n\n"
+            "Por favor intentá de nuevo escribiendo *menu*",
+            numero
+        )
 
 def procesar_seleccion_turno_cancelar(numero_limpio, texto, numero):
     """Procesa la selección del turno a cancelar"""
