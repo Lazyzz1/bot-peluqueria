@@ -666,7 +666,8 @@ def enviar_recordatorio(turno):
                 f"Tu turno es en {horas_faltantes} horas:\n\n"
                 f"🕒 Hora: {hora}\n"
                 f"📍 {peluqueria_nombre}\n\n"
-                f"¡Nos vemos pronto! 💈"
+                f"¡Nos vemos pronto! 💈\n\n"
+                f"(No hace falta que contestes)"
             )
         else:
             return
@@ -1078,7 +1079,7 @@ def procesar_seleccion_dia(numero_limpio, texto, peluqueria_key, numero):
                 mensaje_extra = f"\n👤 Con: *{peluquero['nombre']}*\n"
 
             enviar_mensaje(
-                f"🕒 Horarios disponibles:{mensaje_extra}\n{lista}\n\nElegí un número",
+                f"🕒 Horarios disponibles:{mensaje_extra}\n{lista}\n\nElegí un número, o escribí *menu* para volver al Menú",
                 numero
             )
         else:
@@ -1281,38 +1282,83 @@ def procesar_cancelar_turno_inicio(numero_limpio, peluqueria_key, numero):
             numero
         )
 
-def procesar_seleccion_turno_cancelar(numero_limpio, texto, numero):
+def procesar_seleccion_turno_cancelar(numero_limpio, texto, peluqueria_key, numero):
     """Procesa la selección del turno a cancelar"""
-    if texto == "0":
-        with user_states_lock:
-            user_states[numero_limpio]["paso"] = "menu"
-        enviar_mensaje("✅ Cancelación abortada. Escribí *menu* para volver.", numero)
-    else:
+    try:
+        config = PELUQUERIAS.get(peluqueria_key, {})
+        print(f"🔍 [{config.get('nombre', peluqueria_key)}] Usuario {numero_limpio} cancelando turno")
+        
+        if texto == "0":
+            print(f"   ↳ Cancelación abortada")
+            with user_states_lock:
+                user_states[numero_limpio]["paso"] = "menu"
+            enviar_mensaje("✅ Cancelación abortada. Escribí *menu* para volver.", numero)
+            return
+        
+        # Intentar convertir a número
         try:
             index = int(texto) - 1
-            
-            with user_states_lock:
-                turnos = user_states[numero_limpio].get("turnos", [])
-                
-                if 0 <= index < len(turnos):
-                    turno_seleccionado = turnos[index]
-                    user_states[numero_limpio]["turno_a_cancelar"] = turno_seleccionado
-                    user_states[numero_limpio]["paso"] = "confirmar_cancelacion"
-                    
-                    fecha = turno_seleccionado["inicio"].strftime("%d/%m/%Y")
-                    hora = turno_seleccionado["inicio"].strftime("%H:%M")
-                    
-                    enviar_mensaje(
-                        f"⚠️ ¿Estás seguro de cancelar el turno?\n\n"
-                        f"📅 {fecha} a las {hora}\n"
-                        f"✂️ {turno_seleccionado['resumen']}\n\n"
-                        f"Escribí *SI* para confirmar o *NO* para cancelar",
-                        numero
-                    )
-                else:
-                    enviar_mensaje("❌ Número inválido. Elegí uno de la lista.", numero)
+            print(f"   ↳ Seleccionó turno #{index + 1}")
         except ValueError:
-            enviar_mensaje("❌ Debe ser un número.", numero)
+            print(f"   ↳ Entrada inválida: '{texto}'")
+            enviar_mensaje("❌ Debe ser un número. Elegí uno de la lista o 0 para volver.", numero)
+            return
+        
+        # Obtener turnos del estado
+        with user_states_lock:
+            turnos = user_states[numero_limpio].get("turnos", [])
+        
+        # Verificar que el índice sea válido
+        if index < 0 or index >= len(turnos):
+            print(f"   ↳ Índice fuera de rango: {index}")
+            enviar_mensaje("❌ Número inválido. Elegí uno de la lista.", numero)
+            return
+        
+        turno_seleccionado = turnos[index]
+        
+        # Guardar el turno a cancelar y cambiar estado
+        with user_states_lock:
+            user_states[numero_limpio]["turno_a_cancelar"] = turno_seleccionado
+            user_states[numero_limpio]["paso"] = "confirmar_cancelacion"
+        
+        # Formatear la información del turno
+        try:
+            fecha = turno_seleccionado["inicio"].strftime("%d/%m/%Y")
+            hora = turno_seleccionado["inicio"].strftime("%H:%M")
+            resumen = turno_seleccionado.get("resumen", "Turno")
+            print(f"   ↳ Pidiendo confirmación para: {fecha} {hora}")
+        except Exception as e:
+            print(f"❌ Error formateando fecha del turno: {e}")
+            enviar_mensaje(
+                "❌ Error al procesar el turno.\n\n"
+                "Escribí *menu* para volver.",
+                numero
+            )
+            return
+        
+        # Enviar confirmación
+        enviar_mensaje(
+            f"⚠️ ¿Estás seguro de cancelar el turno?\n\n"
+            f"📅 {fecha} a las {hora}\n"
+            f"✂️ {resumen}\n\n"
+            f"Escribí *SI* para confirmar o *NO* para cancelar",
+            numero
+        )
+        
+    except Exception as e:
+        print(f"❌ ERROR en procesar_seleccion_turno_cancelar [{peluqueria_key}]: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        enviar_mensaje(
+            "❌ Ocurrió un error al procesar tu solicitud.\n\n"
+            "Por favor escribí *menu* para reintentar.",
+            numero
+        )
+        
+        # Resetear estado
+        with user_states_lock:
+            user_states[numero_limpio]["paso"] = "menu"
 
 
 def procesar_confirmacion_cancelacion(numero_limpio, texto, peluqueria_key, numero):
