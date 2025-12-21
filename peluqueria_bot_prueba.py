@@ -17,6 +17,19 @@ from twilio.twiml.messaging_response import MessagingResponse
 import base64
 from threading import Lock
 
+
+MODO_DESARROLLO = 'run_local' in sys.argv[0] or os.getenv('FLASK_ENV') == 'development'
+
+if MODO_DESARROLLO:
+    print("="*60)
+    print("🧪 MODO DESARROLLO ACTIVADO")
+    print("="*60)
+    load_dotenv('.env.local')  # Usar configuración local
+else:
+    print("="*60)
+    print("🚀 MODO PRODUCCIÓN")
+    print("="*60)
+    load_dotenv()  # Usar configuración normal
 #----------------------------------------------------------------
 app = Flask(__name__)
 
@@ -1746,9 +1759,13 @@ if __name__ == "__main__":
         print(f"   • {config['nombre']} ({key})")
     print("=" * 50)
     
-    # Iniciar sistema de recordatorios en segundo plano
-    hilo_recordatorios = threading.Thread(target=sistema_recordatorios, daemon=True)
-    hilo_recordatorios.start()
+    # Iniciar recordatorios solo en producción
+    if not MODO_DESARROLLO:
+        hilo_recordatorios = threading.Thread(target=sistema_recordatorios, daemon=True)
+        hilo_recordatorios.start()
+        print("✅ Sistema de recordatorios activado")
+    else:
+        print("🧪 Recordatorios desactivados en desarrollo")
     print("✅ Sistema de recordatorios activado")
     
     # Puerto dinámico para deployment
@@ -1756,6 +1773,6 @@ if __name__ == "__main__":
     print(f"🚀 Servidor iniciando en puerto {port}")
     print("=" * 50)
     
-    # En producción, usar debug=False
-    app.run(host="0.0.0.0", port=port, debug=False)
+    # Debug según modo
+    app.run(host="0.0.0.0", port=port, debug=MODO_DESARROLLO)
 

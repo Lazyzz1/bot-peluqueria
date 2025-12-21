@@ -3,6 +3,12 @@
 tokens/
 credentials.json
 user_states.json
+
+# Nuevo para desarrollo
+.env.local
+*.backup_*
+clientes.json.backup_*
+ngrok.log
 # ========== ARCHIVOS TEMPORALES ==========
 __pycache__/
 *.pyc
