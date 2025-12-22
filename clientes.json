@@ -72,7 +72,7 @@
         "id": "laura",
         "nombre": "Laura",
         "telefono": "+5491187654321",
-        "activo": true,
+        "activo": false,
         "mensaje_no_disponible": "De vacaciones hasta el 15/01. Vuelvo pronto!",
         "fecha_regreso": "2025-01-15",
         "especialidades": [
