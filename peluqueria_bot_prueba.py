@@ -1064,39 +1064,25 @@ def procesar_mensaje(numero_limpio, texto, estado, peluqueria_key, numero):
 # ==================== OPCIÓN 1: PEDIR TURNO ====================
 
 def procesar_pedir_turno_inicio(numero_limpio, peluqueria_key, numero):
-    """Inicia el flujo de pedir turno - ahora pregunta primero por peluquero"""
+    """Inicia el flujo de pedir turno - filtra peluqueros activos"""
     config = PELUQUERIAS.get(peluqueria_key, {})
     peluqueros = config.get("peluqueros", [])
     
-    # Si NO hay peluqueros configurados, flujo normal
-    if not peluqueros:
-        # Flujo original (seleccionar día directamente)
-        hoy = datetime.now().date()
-        dias = []
-        for i in range(7):
-            dia = hoy + timedelta(days=i)
-            if dia.weekday() != 6:
-                dias.append(dia)
-        
-        with user_states_lock:
-            user_states[numero_limpio]["dias"] = dias
-            user_states[numero_limpio]["paso"] = "seleccionar_dia"
-        
-        dias_espanol = {0: 'Lun', 1: 'Mar', 2: 'Mié', 3: 'Jue', 4: 'Vie', 5: 'Sáb', 6: 'Dom'}
-        lista = "\n".join(
-            f"{i+1}️⃣ {dias_espanol[d.weekday()]} {d.strftime('%d/%m')}"
-            for i, d in enumerate(dias)
-        )
-        enviar_mensaje("📅 Elegí el día para tu turno:\n\n" + lista, numero)
+    # ✅ Filtrar solo peluqueros activos
+    peluqueros_activos = [p for p in peluqueros if p.get("activo", True)]
+    
+    # Si NO hay peluqueros O ninguno activo, flujo normal
+    if not peluqueros or not peluqueros_activos:
+        # Flujo sin peluqueros...
         return
     
-    # Si HAY peluqueros, preguntar primero
+    # Si HAY peluqueros activos, preguntar primero
     with user_states_lock:
         user_states[numero_limpio]["paso"] = "seleccionar_peluquero"
     
-    # Mostrar lista de peluqueros con sus especialidades
+    # Mostrar lista de peluqueros ACTIVOS con sus especialidades
     lista_peluqueros = []
-    for i, peluquero in enumerate(peluqueros):
+    for i, peluquero in enumerate(peluqueros_activos):
         especialidades = ", ".join(peluquero.get("especialidades", []))
         dias = ", ".join([d.capitalize()[:3] for d in peluquero.get("dias_trabajo", [])])
         
@@ -1106,11 +1092,30 @@ def procesar_pedir_turno_inicio(numero_limpio, peluqueria_key, numero):
             f"   📅 {dias}"
         )
     
+    # Verificar si hay peluqueros no disponibles
+    peluqueros_inactivos = [p for p in peluqueros if not p.get("activo", True)]
+    nota_inactivos = ""
+    
+    if peluqueros_inactivos:
+        nombres_inactivos = ", ".join([p['nombre'] for p in peluqueros_inactivos])
+        nota_inactivos = f"\n\n_⚠️ No disponibles: {nombres_inactivos}_"
+        
+        # Mostrar mensajes personalizados
+        for p in peluqueros_inactivos:
+            mensaje_custom = p.get("mensaje_no_disponible")
+            if mensaje_custom:
+                nota_inactivos += f"\n_{p['nombre']}: {mensaje_custom}_"
+    
     mensaje = (
         "👤 *¿Con qué peluquero querés tu turno?*\n\n" +
         "\n\n".join(lista_peluqueros) +
+        nota_inactivos +
         "\n\nElegí un número:"
     )
+    
+    # Guardar solo los activos para validación
+    with user_states_lock:
+        user_states[numero_limpio]["peluqueros_disponibles"] = peluqueros_activos
     
     enviar_mensaje(mensaje, numero)
 
@@ -1677,15 +1682,33 @@ Escribí *menu* para volver"""
 # ==================== OPCIÓN SELECCIÓN DE PELUQUEROS ====================
 
 def procesar_seleccion_peluquero(numero_limpio, texto, peluqueria_key, numero):
-    """Procesa la selección del peluquero"""
+    """Procesa la selección del peluquero - Valida que esté activo"""
     try:
-        config = PELUQUERIAS.get(peluqueria_key, {})
-        peluqueros = config.get("peluqueros", [])
+        # Obtener lista de peluqueros activos del estado del usuario
+        with user_states_lock:
+            # Usar la lista filtrada que guardamos en procesar_pedir_turno_inicio
+            peluqueros = user_states[numero_limpio].get("peluqueros_disponibles", [])
+        
+        # Si no existe la lista filtrada, obtener de config (fallback)
+        if not peluqueros:
+            config = PELUQUERIAS.get(peluqueria_key, {})
+            peluqueros = [p for p in config.get("peluqueros", []) if p.get("activo", True)]
         
         index = int(texto) - 1
         
         if 0 <= index < len(peluqueros):
             peluquero_seleccionado = peluqueros[index]
+            
+            # Verificar nuevamente que esté activo (por si cambió)
+            if not peluquero_seleccionado.get("activo", True):
+                enviar_mensaje(
+                    f"😕 {peluquero_seleccionado['nombre']} no está disponible en este momento.\n\n"
+                    "Escribí *menu* para elegir otro peluquero.",
+                    numero
+                )
+                with user_states_lock:
+                    user_states[numero_limpio]["paso"] = "menu"
+                return
             
             with user_states_lock:
                 user_states[numero_limpio]["peluquero"] = peluquero_seleccionado
@@ -1732,6 +1755,16 @@ def procesar_seleccion_peluquero(numero_limpio, texto, peluqueria_key, numero):
     
     except ValueError:
         enviar_mensaje("❌ Debe ser un número.", numero)
+    except Exception as e:
+        print(f"❌ Error en procesar_seleccion_peluquero: {e}")
+        import traceback
+        traceback.print_exc()
+        enviar_mensaje(
+            "❌ Ocurrió un error. Escribí *menu* para reintentar.",
+            numero
+        )
+        with user_states_lock:
+            user_states[numero_limpio]["paso"] = "menu"
 
 # ==================== OPCIÓN 0: SALIR ====================
 
