@@ -102,6 +102,30 @@ def formatear_fecha_completa(fecha):
     
     return f"{dia_semana} {fecha.day} de {mes}, {fecha.strftime('%H:%M')}"
 
+def formatear_item_lista(indice, texto):
+    """
+    Formatea items de lista con emojis (1-9) o negritas (10+)
+    
+    Args:
+        indice: Índice en la lista (0-based)
+        texto: Texto del item
+    
+    Returns:
+        String formateado
+    """
+    numero = indice + 1
+    
+    # Emojis numéricos del 1 al 9
+    emojis = {
+        1: "1️⃣", 2: "2️⃣", 3: "3️⃣", 4: "4️⃣", 5: "5️⃣",
+        6: "6️⃣", 7: "7️⃣", 8: "8️⃣", 9: "9️⃣"
+    }
+    
+    if numero in emojis:
+        return f"{emojis[numero]} {texto}"
+    else:
+        return f"*{numero}.* {texto}"
+
 def obtener_peluqueros_disponibles(peluqueria_key, dia_seleccionado, servicio=None):
     """
     Obtiene los peluqueros que trabajan en un día específico
@@ -1088,12 +1112,12 @@ def procesar_pedir_turno_inicio(numero_limpio, peluqueria_key, numero):
         especialidades = ", ".join(peluquero.get("especialidades", []))
         dias = ", ".join([d.capitalize()[:3] for d in peluquero.get("dias_trabajo", [])])
         
-        lista_peluqueros.append(
-            f"{i+1}️⃣ *{peluquero['nombre']}*\n"
+        contenido = (
+            f"*{peluquero['nombre']}*\n"
             f"   ✂️ {especialidades}\n"
             f"   📅 {dias}"
         )
-    
+        lista_peluqueros.append(formatear_item_lista(i, contenido))
     # Verificar si hay peluqueros no disponibles
     peluqueros_inactivos = [p for p in peluqueros if not p.get("activo", True)]
     nota_inactivos = ""
@@ -1154,7 +1178,7 @@ def procesar_seleccion_dia(numero_limpio, texto, peluqueria_key, numero):
                 user_states[numero_limpio]["paso"] = "seleccionar_horario"
 
             lista = "\n".join(
-                f"*{i+1}.* {h.strftime('%H:%M')}"
+                formatear_item_lista(i, h.strftime('%H:%M'))
                 for i, h in enumerate(horarios)
 
             )
@@ -1221,7 +1245,7 @@ def procesar_nombre_cliente(numero_limpio, texto, peluqueria_key, numero):
         lista = []
         for i, servicio in enumerate(servicios_a_mostrar):
             precio_formateado = f"${servicio['precio']:,}".replace(',', '.')
-            lista.append(f"{i+1}️⃣ {servicio['nombre']} - {precio_formateado}")
+            lista.append(formatear_item_lista(i, f"{servicio['nombre']} - {precio_formateado}"))
         
         # Guardar los servicios filtrados en el estado
         with user_states_lock:
@@ -1354,7 +1378,7 @@ def procesar_cancelar_turno_inicio(numero_limpio, peluqueria_key, numero):
         for i, turno in enumerate(turnos):
             fecha = turno["inicio"].strftime("%d/%m/%Y")
             hora = turno["inicio"].strftime("%H:%M")
-            lista.append(f"{i+1}️⃣ {fecha} a las {hora}\n   {turno['resumen']}")
+            lista.append(formatear_item_lista(i, f"{fecha} a las {hora}\n   {turno['resumen']}"))
         
         mensaje = (
             "❌ *Selecciona el turno a cancelar:*\n\n" + 
@@ -1745,8 +1769,9 @@ def procesar_seleccion_peluquero(numero_limpio, texto, peluqueria_key, numero):
             
             dias_espanol = {0: 'Lun', 1: 'Mar', 2: 'Mié', 3: 'Jue', 4: 'Vie', 5: 'Sáb', 6: 'Dom'}
             lista = "\n".join(
-                f"{i+1}️⃣ {dias_espanol[d.weekday()]} {d.strftime('%d/%m')}"
+                formatear_item_lista(i, f"{dias_espanol[d.weekday()]} {d.strftime('%d/%m')}")
                 for i, d in enumerate(dias)
+
             )
             
             enviar_mensaje(
