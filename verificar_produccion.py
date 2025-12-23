@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+
 """
 Verifica que todo esté listo para producción
 Uso: python verificar_produccion.py

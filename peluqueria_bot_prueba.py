@@ -134,6 +134,8 @@ def obtener_peluqueros_disponibles(peluqueria_key, dia_seleccionado, servicio=No
     return peluqueros_disponibles
 
 
+
+
 def obtener_horarios_peluquero(peluqueria_key, dia_seleccionado, peluquero_id):
     """
     Obtiene horarios disponibles de un peluquero específico
@@ -1152,8 +1154,9 @@ def procesar_seleccion_dia(numero_limpio, texto, peluqueria_key, numero):
                 user_states[numero_limpio]["paso"] = "seleccionar_horario"
 
             lista = "\n".join(
-                f"{i+1}️⃣ {h.strftime('%H:%M')}"
+                f"*{i+1}.* {h.strftime('%H:%M')}"
                 for i, h in enumerate(horarios)
+
             )
 
             mensaje_extra = ""

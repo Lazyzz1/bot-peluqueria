@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+
 """
 Verifica que la conexión con Google Calendar funcione
 Uso: python test_calendar.py [peluqueria_key]
