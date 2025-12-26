@@ -34,8 +34,32 @@ else:
 app = Flask(__name__)
 
 
-# ------------------- CONFIGURACIÓN DE META ---------------------
+# ==================== CONFIGURACIÓN DE PLANTILLAS ====================
 
+# Activar/desactivar uso de plantillas aprobadas
+USAR_PLANTILLAS = True  # Cambiar a False para usar mensajes normales
+
+# Content SIDs de plantillas (obtener de Twilio Content Editor)
+TEMPLATE_CONFIRMACION = os.getenv("TEMPLATE_CONFIRMACION", "HXxxxxx")
+TEMPLATE_RECORDATORIO = os.getenv("TEMPLATE_RECORDATORIO", "HXxxxxx")
+TEMPLATE_NUEVO_TURNO = os.getenv("TEMPLATE_NUEVO_TURNO", "HXxxxxx")
+TEMPLATE_MODIFICADO = os.getenv("TEMPLATE_MODIFICADO", "HXxxxxx")
+
+# Verificar que los SIDs estén configurados
+if USAR_PLANTILLAS:
+    templates_configurados = all([
+        TEMPLATE_CONFIRMACION != "HXxxxxx",
+        TEMPLATE_RECORDATORIO != "HXxxxxx",
+        TEMPLATE_NUEVO_TURNO != "HXxxxxx",
+        TEMPLATE_MODIFICADO != "HXxxxxx"
+    ])
+    
+    if not templates_configurados:
+        print("⚠️ ADVERTENCIA: USAR_PLANTILLAS=True pero faltan Content SIDs")
+        print("   Agrega los SIDs en .env o directamente en el código")
+
+
+# ------------------- CONFIGURACIÓN DE META ---------------------
 
 load_dotenv()  # Carga variables de .env
 
@@ -726,7 +750,7 @@ def obtener_turnos_proximos(peluqueria_key, horas_anticipacion=24):
         return []
 
 def enviar_recordatorio(turno):
-    """Envía un recordatorio de turno al cliente"""
+    """Envía un recordatorio de turno al cliente usando plantilla aprobada"""
     try:
         # Verificar si el usuario tiene recordatorios activos
         with user_states_lock:
@@ -735,66 +759,65 @@ def enviar_recordatorio(turno):
                     print(f"⏭️ Usuario {turno['telefono']} tiene recordatorios desactivados")
                     return
         
-        # Obtener nombre de la peluquería
-        peluqueria_nombre = PELUQUERIAS.get(turno.get("peluqueria", "cliente_001"), {}).get("nombre", "Peluquería")
-        
-        # Extraer nombre del peluquero del resumen si existe
-        resumen = turno.get("resumen", "Turno")
-        nombre_peluquero = None
-        
-        # Formato esperado: "Carlos - Corte clásico - Juan"
-        if " - " in resumen:
-            partes = resumen.split(" - ")
-            if len(partes) >= 2:
-                # Verificar si la primera parte es un nombre de peluquero
-                config = PELUQUERIAS.get(turno.get("peluqueria", "cliente_001"), {})
-                for p in config.get("peluqueros", []):
-                    if p["nombre"] == partes[0]:
-                        nombre_peluquero = p["nombre"]
-                        break
-        
-        fecha = turno["inicio"].strftime("%d/%m/%Y")
+        # Formatear datos
+        fecha = formatear_fecha_espanol(turno["inicio"])
         hora = turno["inicio"].strftime("%H:%M")
+        
+        # Extraer nombre del cliente y servicio del resumen
+        resumen = turno.get("resumen", "Turno")
+        partes = resumen.split(" - ")
+        
+        # Intentar extraer servicio
+        if len(partes) >= 2:
+            servicio = partes[-2] if len(partes) >= 3 else partes[0]
+        else:
+            servicio = "Tu servicio"
+        
+        # Intentar extraer nombre del cliente
+        if len(partes) >= 3:
+            nombre_cliente = partes[-1]
+        else:
+            nombre_cliente = "Cliente"
         
         tz = pytz.timezone('America/Argentina/Buenos_Aires')
         ahora = datetime.now(tz)
         diferencia = turno["inicio"] - ahora
         horas_faltantes = int(diferencia.total_seconds() / 3600)
         
-        # Agregar info del peluquero al mensaje
-        info_peluquero = ""
-        if nombre_peluquero:
-            info_peluquero = f"👤 Con: {nombre_peluquero}\n"
+        print(f"📤 Enviando recordatorio a {turno['telefono']} ({horas_faltantes}h antes)")
         
+        # ✅ Usar plantilla de recordatorio
         if horas_faltantes >= 20:  # Recordatorio de 24 horas
-            mensaje = (
-                f"🔔 *Recordatorio de turno*\n\n"
-                f"¡Hola! Te recordamos que tenés turno mañana:\n\n"
-                f"📅 Fecha: {fecha}\n"
-                f"🕒 Hora: {hora}\n"
-                f"{info_peluquero}"
-                f"✂️ {resumen}\n"
-                f"📍 {peluqueria_nombre}\n\n"
-                f"¡Te esperamos! 💈\n\n"
-                f"_Si necesitás cancelar, escribí *menu* y elegí la opción 3_"
+            resultado = enviar_con_plantilla(
+                telefono=turno["telefono"],
+                content_sid=TEMPLATE_RECORDATORIO,
+                variables={
+                    "1": nombre_cliente,  # {{1}} = Nombre
+                    "2": fecha,           # {{2}} = Fecha
+                    "3": hora,            # {{3}} = Hora
+                    "4": servicio         # {{4}} = Servicio
+                }
             )
-        elif horas_faltantes >= 1 and horas_faltantes < 3:  # Recordatorio de 2 horas
+            
+            if resultado:
+                print(f"✅ Recordatorio 24h enviado con plantilla")
+            
+        elif 1 <= horas_faltantes < 3:  # Recordatorio de 2 horas
+            # Para 2h podemos usar mensaje normal o crear otra plantilla
             mensaje = (
                 f"⏰ *Recordatorio urgente*\n\n"
                 f"Tu turno es en {horas_faltantes} horas:\n\n"
                 f"🕒 Hora: {hora}\n"
-                f"{info_peluquero}"
-                f"📍 {peluqueria_nombre}\n\n"
+                f"✂️ {servicio}\n\n"
                 f"¡Nos vemos pronto! 💈"
             )
-        else:
-            return
-        
-        enviar_mensaje(mensaje, turno["telefono"])
-        print(f"✅ Recordatorio enviado a {turno['telefono']} para turno de {hora}")
+            enviar_mensaje(mensaje, turno["telefono"])
+            print(f"✅ Recordatorio 2h enviado")
         
     except Exception as e:
         print(f"❌ Error enviando recordatorio: {e}")
+        import traceback
+        traceback.print_exc()
 
 def sistema_recordatorios():
     """Sistema de recordatorios en segundo plano"""
@@ -877,13 +900,56 @@ def enviar_mensaje(texto, numero):
         print(f"❌ Error enviando mensaje: {e}")
         return False
 
+def enviar_con_plantilla(telefono, content_sid, variables):
+    """
+    Envía mensaje usando plantilla aprobada de Twilio
+    
+    Args:
+        telefono: Número destino (con o sin 'whatsapp:')
+        content_sid: Content SID de la plantilla (ej: HXxxxx...)
+        variables: Dict con las variables de la plantilla
+        
+    Returns:
+        bool: True si se envió correctamente
+    """
+    try:
+        # Limpiar número
+        numero_limpio = telefono.replace('whatsapp:', '').strip()
+        numero_formateado = f'whatsapp:{numero_limpio}'
+        
+        print(f"\n📤 Enviando con plantilla:")
+        print(f"   Para: {numero_formateado}")
+        print(f"   Template SID: {content_sid}")
+        print(f"   Variables: {variables}")
+        
+        # Convertir variables a formato JSON string
+        import json
+        content_variables = json.dumps(variables)
+        
+        message = twilio_client.messages.create(
+            from_=f'whatsapp:{TWILIO_WHATSAPP_NUMBER}',
+            to=numero_formateado,
+            content_sid=content_sid,
+            content_variables=content_variables
+        )
+        
+        print(f"✅ Mensaje con plantilla enviado - SID: {message.sid}")
+        print(f"   Status: {message.status}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error enviando con plantilla: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
 
 def notificar_peluquero(peluquero, cliente, servicio, fecha_hora, config):
     """
-    Envía notificación al peluquero cuando se reserva un turno con él
+    Envía notificación al peluquero cuando se reserva un turno
+    Usa plantilla aprobada
     """
     try:
-        # Verificar que el peluquero tenga número de teléfono
         telefono_peluquero = peluquero.get("telefono")
         
         if not telefono_peluquero:
@@ -894,22 +960,22 @@ def notificar_peluquero(peluquero, cliente, servicio, fecha_hora, config):
         fecha_formateada = formatear_fecha_espanol(fecha_hora)
         hora = fecha_hora.strftime("%H:%M")
         
-        # Mensaje para el peluquero
-        mensaje = (
-            f"📅 *Nuevo turno reservado*\n\n"
-            f"👤 Cliente: {cliente}\n"
-            f"✂️ Servicio: {servicio}\n"
-            f"📆 Fecha: {fecha_formateada}\n"
-            f"⏰ Hora: {hora}\n"
-            f"📍 {config['nombre']}\n\n"
-            f"¡Te esperamos! 💈"
+        print(f"📱 Notificando a {peluquero['nombre']} sobre turno de {cliente}")
+        
+        # ✅ Enviar con plantilla "Nuevo turno reservado"
+        resultado = enviar_con_plantilla(
+            telefono=telefono_peluquero,
+            content_sid=TEMPLATE_NUEVO_TURNO,
+            variables={
+                "1": cliente,           # {{1}} = Cliente
+                "2": fecha_formateada,  # {{2}} = Fecha
+                "3": hora,              # {{3}} = Hora
+                "4": servicio           # {{4}} = Servicio
+            }
         )
         
-        # Enviar mensaje
-        resultado = enviar_mensaje(mensaje, telefono_peluquero)
-        
         if resultado:
-            print(f"✅ Notificación enviada a {peluquero['nombre']} ({telefono_peluquero})")
+            print(f"✅ Notificación con plantilla enviada a {peluquero['nombre']}")
         else:
             print(f"❌ Error enviando notificación a {peluquero['nombre']}")
         
@@ -1317,119 +1383,79 @@ def procesar_nombre_cliente(numero_limpio, texto, peluqueria_key, numero):
             "Ejemplos:\n"
             "• Un servicio: 1\n"
             "• Varios: 1,2 o 1,3\n"
-            "• Todos: 1,2,3,4"
+            
         )
         enviar_mensaje(mensaje, numero)
     else:
         enviar_mensaje("📋 ¿Qué servicio querés?\nEj: Corte, Tintura, Barba", numero)
 
 def procesar_seleccion_servicio(numero_limpio, texto, peluqueria_key, numero):
-    """Procesa la selección de uno o más servicios"""
+    """Procesa la selección del servicio y crea la reserva"""
+    config = PELUQUERIAS[peluqueria_key]
+    
+    with user_states_lock:
+        # Usar los servicios filtrados que guardamos
+        servicios = user_states[numero_limpio].get("servicios_disponibles", config.get("servicios", []))
+        fecha_hora = user_states[numero_limpio]["fecha_hora"]
+        cliente = user_states[numero_limpio]["cliente"]
+        peluquero = user_states[numero_limpio].get("peluquero")
+    
+    servicio_seleccionado = None
+    
+    # Intentar parsear como número
     try:
-        config = PELUQUERIAS[peluqueria_key]
-        
-        with user_states_lock:
-            servicios_disponibles = user_states[numero_limpio].get("servicios_disponibles", config.get("servicios", []))
-        
-        servicios_seleccionados = []
-        
-        # Intentar parsear selección múltiple (ej: "1,2,3")
-        if ',' in texto or ' ' in texto:
-            # Limpiar y separar
-            numeros_str = texto.replace(' ', '').split(',')
-            
-            for num_str in numeros_str:
-                try:
-                    index = int(num_str.strip()) - 1
-                    if 0 <= index < len(servicios_disponibles):
-                        servicios_seleccionados.append(servicios_disponibles[index])
-                    else:
-                        enviar_mensaje(
-                            f"❌ Número {num_str} fuera de rango.\n\n"
-                            "Escribí los números correctos separados por coma (ej: 1,2)",
-                            numero
-                        )
-                        return
-                except ValueError:
-                    enviar_mensaje(
-                        "❌ Formato inválido.\n\n"
-                        "Ejemplos correctos:\n"
-                        "• Un servicio: 1\n"
-                        "• Varios: 1,2 o 1,3",
-                        numero
-                    )
-                    return
-        
-        # Selección simple (un solo número)
-        else:
-            try:
-                index = int(texto) - 1
-                if 0 <= index < len(servicios_disponibles):
-                    servicios_seleccionados.append(servicios_disponibles[index])
-                else:
-                    enviar_mensaje("❌ Número inválido. Elegí uno de la lista.", numero)
-                    return
-            except ValueError:
-                # Intentar buscar por nombre
-                texto_servicio = texto.title()
-                encontrado = False
-                for servicio in servicios_disponibles:
-                    if texto_servicio.lower() in servicio['nombre'].lower():
-                        servicios_seleccionados.append(servicio)
-                        encontrado = True
-                        break
-                
-                if not encontrado:
-                    enviar_mensaje(
-                        "❌ Servicio no encontrado.\n\n"
-                        "Escribí el número del servicio o su nombre exacto.",
-                        numero
-                    )
-                    return
-        
-        if not servicios_seleccionados:
-            enviar_mensaje("❌ No seleccionaste ningún servicio válido.", numero)
-            return
-        
-        # Calcular totales
-        precio_total = sum(s['precio'] for s in servicios_seleccionados)
-        duracion_total = sum(s['duracion'] for s in servicios_seleccionados)
-        
-        # Guardar servicios seleccionados
-        with user_states_lock:
-            user_states[numero_limpio]["servicios_seleccionados"] = servicios_seleccionados
-            user_states[numero_limpio]["duracion_total"] = duracion_total
-            user_states[numero_limpio]["paso"] = "confirmar_servicios"
-        
-        # Mostrar resumen y pedir confirmación
-        nombres_servicios = "\n".join(
-            f"✂️ {s['nombre']} - ${s['precio']:,}".replace(',', '.')
-            for s in servicios_seleccionados
-        )
-        
-        mensaje = (
-            f"📋 *Resumen de servicios*\n\n"
-            f"{nombres_servicios}\n\n"
-            f"💰 *Total: ${precio_total:,}*".replace(',', '.') + "\n"
-            f"⏱️ *Duración: {duracion_total} minutos*\n\n"
-            f"¿Confirmar estos servicios?\n\n"
-            f"1️⃣ Sí, confirmar\n"
-            f"2️⃣ No, elegir de nuevo"
-        )
-        
-        enviar_mensaje(mensaje, numero)
-        
-    except Exception as e:
-        print(f"❌ Error en procesar_seleccion_servicio: {e}")
-        import traceback
-        traceback.print_exc()
+        index = int(texto) - 1
+        if 0 <= index < len(servicios):
+            servicio_seleccionado = servicios[index]["nombre"]
+    except ValueError:
+        # Si no es número, usar el texto que escribió
+        servicio_seleccionado = texto.title()
+    
+    if not servicio_seleccionado:
         enviar_mensaje(
-            "❌ Ocurrió un error. Escribí *menu* para reintentar.",
+            "❌ Servicio no válido.\n\n"
+            "Escribí *menu* para volver a empezar.",
             numero
         )
         with user_states_lock:
             user_states[numero_limpio]["paso"] = "menu"
+        return
+    
+    telefono = numero_limpio
 
+    # Crear reserva en Google Calendar con peluquero
+    if crear_reserva_en_calendar(peluqueria_key, fecha_hora, cliente, servicio_seleccionado, telefono, peluquero):
+        
+        fecha_formateada = formatear_fecha_espanol(fecha_hora)
+        hora = fecha_hora.strftime("%H:%M")
+        
+        # ✅ Enviar confirmación con plantilla
+        enviar_con_plantilla(
+            telefono=numero,
+            content_sid=TEMPLATE_CONFIRMACION,
+            variables={
+                "1": cliente,
+                "2": fecha_formateada,
+                "3": hora,
+                "4": servicio_seleccionado,
+                "5": config['nombre']
+            }
+        )
+        
+        # Notificar al peluquero
+        if peluquero:
+            notificar_peluquero(peluquero, cliente, servicio_seleccionado, fecha_hora, config)
+        
+    else:
+        enviar_mensaje(
+            "❌ Hubo un error al crear la reserva. Por favor intentá de nuevo.\n\n"
+            "Escribí *menu* para volver.",
+            numero
+        )
+
+    with user_states_lock:
+        user_states[numero_limpio]["paso"] = "menu"
+        
 def procesar_confirmacion_servicios(numero_limpio, texto, peluqueria_key, numero):
     """Procesa la confirmación de servicios seleccionados"""
     try:
@@ -1443,7 +1469,7 @@ def procesar_confirmacion_servicios(numero_limpio, texto, peluqueria_key, numero
                 peluquero = user_states[numero_limpio].get("peluquero")
                 dia_seleccionado = user_states[numero_limpio]["dia"]
             
-            # VALIDAR: Verificar que hay suficiente tiempo antes del cierre
+            # ✅ VALIDAR: Verificar que hay suficiente tiempo antes del cierre
             hora_cierre = obtener_hora_cierre(peluqueria_key, dia_seleccionado, peluquero)
             hora_fin_turno = fecha_hora + timedelta(minutes=duracion_total)
             
@@ -1473,11 +1499,11 @@ def procesar_confirmacion_servicios(numero_limpio, texto, peluqueria_key, numero
                 print(f"❌ Turno rechazado: Se extiende {minutos_faltantes}min después del cierre")
                 return
             
-            # Hay suficiente tiempo, proceder con la reserva
+            # ✅ Hay suficiente tiempo, proceder con la reserva
             telefono = numero_limpio
             config = PELUQUERIAS[peluqueria_key]
             
-            # Crear resumen de servicios para el título del evento
+            # Crear resumen de servicios
             if len(servicios_seleccionados) == 1:
                 resumen_servicios = servicios_seleccionados[0]['nombre']
             else:
@@ -1486,7 +1512,7 @@ def procesar_confirmacion_servicios(numero_limpio, texto, peluqueria_key, numero
             # Calcular precio total
             precio_total = sum(s['precio'] for s in servicios_seleccionados)
             
-            # Crear reserva con duración personalizada
+            # ✅ Crear reserva con duración personalizada (parámetros completos)
             if crear_reserva_multiple(
                 peluqueria_key, 
                 fecha_hora, 
@@ -1496,35 +1522,25 @@ def procesar_confirmacion_servicios(numero_limpio, texto, peluqueria_key, numero
                 telefono, 
                 peluquero
             ):
-                fecha_formateada = formatear_fecha_completa(fecha_hora)
+                fecha_formateada = formatear_fecha_espanol(fecha_hora)
+                hora = fecha_hora.strftime("%H:%M")
                 
-                # Lista de servicios para el mensaje
-                lista_servicios = "\n".join(
-                    f"   • {s['nombre']}"
-                    for s in servicios_seleccionados
-                )
-                
-                mensaje_peluquero = ""
-                if peluquero:
-                    mensaje_peluquero = f"👤 Con: *{peluquero['nombre']}*\n"
-                
-                enviar_mensaje(
-                    f"✅ ¡Listo {cliente}! Turno reservado:\n\n"
-                    f"📅 {fecha_formateada}\n"
-                    f"{mensaje_peluquero}"
-                    f"✂️ Servicios:\n{lista_servicios}\n\n"
-                    f"💰 Total: ${precio_total:,}".replace(',', '.') + "\n"
-                    f"⏱️ Duración: {duracion_total} min\n"
-                    f"🕐 Finaliza: {hora_fin_turno.strftime('%H:%M')}\n"
-                    f"📍 {config['nombre']}\n\n"
-                    f"¡Te esperamos! 💈\n\n"
-                    f"Recibirás recordatorios automáticos.",
-                    numero
+                # ✅ Enviar confirmación con plantilla (UNA SOLA VEZ)
+                enviar_con_plantilla(
+                    telefono=numero,
+                    content_sid=TEMPLATE_CONFIRMACION,
+                    variables={
+                        "1": cliente,
+                        "2": fecha_formateada,
+                        "3": hora,
+                        "4": resumen_servicios,
+                        "5": config['nombre']
+                    }
                 )
                 
                 print(f"✅ Turno confirmado: {fecha_hora.strftime('%H:%M')}-{hora_fin_turno.strftime('%H:%M')}")
                 
-                # Notificar al peluquero
+                # ✅ Notificar al peluquero (UNA SOLA VEZ)
                 if peluquero:
                     notificar_peluquero(peluquero, cliente, resumen_servicios, fecha_hora, config)
                 
@@ -1779,33 +1795,57 @@ def procesar_confirmacion_cancelacion(numero_limpio, texto, peluqueria_key, nume
     """Procesa la confirmación de cancelación"""
     try:
         if texto in ["si", "sí", "s"]:
-            # Obtener el turno a cancelar
             with user_states_lock:
                 turno = user_states[numero_limpio].get("turno_a_cancelar")
             
-            if not turno:
+            if turno and cancelar_turno(peluqueria_key, turno["id"]):
+                fecha = turno["inicio"].strftime("%d/%m/%Y")
+                hora = turno["inicio"].strftime("%H:%M")
+                
+                # Extraer info del cliente del resumen
+                resumen = turno.get("resumen", "")
+                partes = resumen.split(" - ")
+                nombre_cliente = partes[-1] if len(partes) >= 3 else "Cliente"
+                servicio = partes[-2] if len(partes) >= 3 else partes[0] if partes else "Servicio"
+                
+                # ✅ Enviar confirmación de cancelación al cliente (mensaje normal)
                 enviar_mensaje(
-                    "❌ No se encontró el turno a cancelar.\n\n"
-                    "Escribí *menu* para volver.",
+                    f"✅ Turno cancelado exitosamente\n\n"
+                    f"📅 {fecha} a las {hora}\n\n"
+                    f"¡Esperamos verte pronto! 💈",
                     numero
                 )
-                with user_states_lock:
-                    user_states[numero_limpio]["paso"] = "menu"
-                return
+                
+                # ✅ Notificar al peluquero con plantilla
+                config = PELUQUERIAS.get(peluqueria_key, {})
+                
+                # Buscar peluquero en el resumen
+                nombre_peluquero = None
+                telefono_peluquero = None
+                
+                for peluquero in config.get("peluqueros", []):
+                    if peluquero["nombre"] in resumen:
+                        nombre_peluquero = peluquero["nombre"]
+                        telefono_peluquero = peluquero.get("telefono")
+                        break
+                
+                if telefono_peluquero:
+                    print(f"📱 Notificando cancelación a {nombre_peluquero}")
+                    
+                    enviar_con_plantilla(
+                        telefono=telefono_peluquero,
+                        content_sid=TEMPLATE_MODIFICADO,
+                        variables={
+                            "1": nombre_cliente,  # {{1}} = Cliente
+                            "2": fecha,           # {{2}} = Fecha
+                            "3": hora,            # {{3}} = Hora
+                            "4": servicio         # {{4}} = Servicio
+                        }
+                    )
+                    print(f"✅ Notificación de cancelación enviada a {nombre_peluquero}")
             
-            # Obtener info del turno antes de cancelar
-            config = PELUQUERIAS.get(peluqueria_key, {})
-            
-            # Extraer nombre del peluquero del resumen del turno si existe
-            # Formato: "Carlos - Corte clásico - Juan"
-            resumen = turno.get("resumen", "")
-            nombre_peluquero = None
-            
-            for peluquero in config.get("peluqueros", []):
-                if peluquero["nombre"] in resumen:
-                    nombre_peluquero = peluquero["nombre"]
-                    telefono_peluquero = peluquero.get("telefono")
-                    break
+            with user_states_lock:
+                user_states[numero_limpio]["paso"] = "menu"
             
             # Intentar cancelar el turno
             if cancelar_turno(peluqueria_key, turno["id"]):
