@@ -47,17 +47,20 @@ TEMPLATE_MODIFICADO = os.getenv("TEMPLATE_MODIFICADO", "HXxxxxx")
 
 # Verificar que los SIDs estén configurados
 if USAR_PLANTILLAS:
-    templates_configurados = all([
-        TEMPLATE_CONFIRMACION != "HXxxxxx",
-        TEMPLATE_RECORDATORIO != "HXxxxxx",
-        TEMPLATE_NUEVO_TURNO != "HXxxxxx",
-        TEMPLATE_MODIFICADO != "HXxxxxx"
-    ])
-    
-    if not templates_configurados:
-        print("⚠️ ADVERTENCIA: USAR_PLANTILLAS=True pero faltan Content SIDs")
-        print("   Agrega los SIDs en .env o directamente en el código")
+    faltantes = [
+        nombre for nombre, valor in {
+            "TEMPLATE_CONFIRMACION": TEMPLATE_CONFIRMACION,
+            "TEMPLATE_RECORDATORIO": TEMPLATE_RECORDATORIO,
+            "TEMPLATE_NUEVO_TURNO": TEMPLATE_NUEVO_TURNO,
+            "TEMPLATE_MODIFICADO": TEMPLATE_MODIFICADO,
+        }.items() if not valor
+    ]
 
+    if faltantes:
+        print("❌ ERROR: Faltan Content SIDs de WhatsApp:")
+        for f in faltantes:
+            print(f"   - {f}")
+        raise SystemExit(1)
 
 # ------------------- CONFIGURACIÓN DE META ---------------------
 
@@ -962,7 +965,7 @@ def notificar_peluquero(peluquero, cliente, servicio, fecha_hora, config):
         
         print(f"📱 Notificando a {peluquero['nombre']} sobre turno de {cliente}")
         
-        # ✅ Enviar con plantilla "Nuevo turno reservado"
+        # Enviar con plantilla "Nuevo turno reservado"
         resultado = enviar_con_plantilla(
             telefono=telefono_peluquero,
             content_sid=TEMPLATE_NUEVO_TURNO,

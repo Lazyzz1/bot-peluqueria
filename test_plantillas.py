@@ -11,14 +11,13 @@ client = Client(
     os.getenv("TWILIO_AUTH_TOKEN")
 )
 
-# Tus Content SIDs
+#  Content SIDs
 TEMPLATES = {
-    "confirmacion": "HX687ab90c71136841a0dbdb6510acdfb2",  # Reemplazar con tus SIDs reales
-    "recordatorio": "HXe4e9cfacce945f16c72c42c8a85c9503",
-    "nuevo_turno": "HX1ec8cd8147c8e3f5ef1eb2341b17c4db",
-    "modificado": "HX16405a5a40b1e4618096147efe8a3464"
+    "confirmacion": os.getenv("TEMPLATE_CONFIRMACION"),
+    "recordatorio": os.getenv("TEMPLATE_RECORDATORIO"),
+    "nuevo_turno": os.getenv("TEMPLATE_NUEVO_TURNO"),
+    "modificado": os.getenv("TEMPLATE_MODIFICADO"),
 }
-
 def test_plantilla(nombre, content_sid, variables, telefono_test):
     """Prueba una plantilla"""
     print(f"\n🧪 Probando plantilla: {nombre}")

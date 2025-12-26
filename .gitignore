@@ -9,6 +9,7 @@ user_states.json
 *.backup_*
 clientes.json.backup_*
 ngrok.log
+
 # ========== ARCHIVOS TEMPORALES ==========
 __pycache__/
 *.pyc
