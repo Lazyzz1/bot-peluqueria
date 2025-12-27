@@ -1084,24 +1084,31 @@ def webhook():
         numero_limpio = numero.replace('whatsapp:', '')
         texto = incoming_msg
         
-        # Inicializar estado si es nuevo usuario
+        # ✅ NUEVO: Inicializar estado si es nuevo usuario O si está en paso "finalizado"
         with user_states_lock:
             if numero_limpio not in user_states:
+                print(f"🆕 Nuevo usuario detectado: {numero_limpio}")
                 user_states[numero_limpio] = {
                     "paso": "menu",
                     "peluqueria": peluqueria_key
                 }
-            # Actualizar la peluquería por si cambió
             else:
+                # ✅ Si el usuario está en paso "finalizado", reactivarlo
+                paso_actual = user_states[numero_limpio].get("paso", "menu")
+                if paso_actual == "finalizado":
+                    print(f"🔄 Reactivando usuario: {numero_limpio}")
+                    user_states[numero_limpio]["paso"] = "menu"
+                
+                # Actualizar la peluquería por si cambió
                 user_states[numero_limpio]["peluqueria"] = peluqueria_key
         
-        # Comandos globales - MENÚ
-        if texto in ["menu", "menú", "inicio", "hola", "hi", "hey"]:
+        # ✅ NUEVO: Comandos globales para volver al menú (más flexibles)
+        comandos_menu = ["menu", "menú", "inicio", "hola", "hi", "hey", "buenas", "buenos dias", "buenas tardes", "buen dia"]
+        
+        if texto in comandos_menu:
+            print(f"📋 Comando de menú detectado: '{texto}'")
             with user_states_lock:
-                user_states[numero_limpio] = {
-                    "paso": "menu",
-                    "peluqueria": peluqueria_key
-                }
+                user_states[numero_limpio]["paso"] = "menu"
             enviar_mensaje(obtener_menu_principal(peluqueria_key), numero)
             return "", 200
         
@@ -1109,9 +1116,29 @@ def webhook():
         with user_states_lock:
             estado = user_states[numero_limpio].get("paso", "menu")
         
+        print(f"📍 Estado actual del usuario: {estado}")
+        
+        # ✅ NUEVO: Si el usuario está en "menu" y escribe CUALQUIER COSA, mostrar menú
+        if estado == "menu":
+            # Verificar si es una opción válida del menú (1-7, 0)
+            if texto in ["1", "2", "3", "4", "5", "6", "7", "0"]:
+                # Es una opción válida, procesarla normalmente
+                print(f"✅ Opción de menú válida: {texto}")
+                procesar_mensaje(numero_limpio, texto, estado, peluqueria_key, numero)
+            else:
+                # ✅ NO es una opción válida, mostrar el menú
+                print(f"❓ Mensaje no reconocido en menú: '{texto}' -> Mostrando menú")
+                enviar_mensaje(
+                    f"👋 ¡Hola! No entendí tu mensaje.\n\n" + 
+                    obtener_menu_principal(peluqueria_key),
+                    numero
+                )
+            return "", 200
+        
         # Comando para cancelar operación actual
-        if texto in ["cancelar", "salir", "abortar", "stop"]:
+        if texto in ["cancelar", "salir", "abortar", "stop", "volver"]:
             if estado != "menu":
+                print(f"❌ Usuario canceló operación desde estado: {estado}")
                 with user_states_lock:
                     user_states[numero_limpio]["paso"] = "menu"
                 enviar_mensaje(
@@ -1144,6 +1171,7 @@ def webhook():
             pass
     
     return "", 200
+
 
 def obtener_menu_principal(peluqueria_key):
     """Genera el menú principal personalizado"""
@@ -1188,9 +1216,15 @@ def procesar_mensaje(numero_limpio, texto, estado, peluqueria_key, numero):
         elif texto == "0":  # Salir
             procesar_salir(config, numero_limpio, numero)
         else:
-            enviar_mensaje("❓ No entendí. Escribí *menu* para ver las opciones.", numero)
+            # ✅ NUEVO: Mensaje más amigable para opciones no válidas
+            enviar_mensaje(
+                f"❓ No entendí '{texto}'\n\n" + 
+                obtener_menu_principal(peluqueria_key),
+                numero
+            )
+    
     elif estado == "seleccionar_peluquero":
-            procesar_seleccion_peluquero(numero_limpio, texto, peluqueria_key, numero)    
+        procesar_seleccion_peluquero(numero_limpio, texto, peluqueria_key, numero)    
 
     # FLUJO PEDIR TURNO
     elif estado == "seleccionar_dia":
@@ -1215,8 +1249,15 @@ def procesar_mensaje(numero_limpio, texto, estado, peluqueria_key, numero):
         procesar_seleccion_turno_reagendar(numero_limpio, texto, numero)
     
     else:
-        enviar_mensaje("❓ No entendí. Escribí *menu* para volver al menú.", numero)
-
+        # ✅ NUEVO: Si el estado es desconocido, resetear a menú
+        print(f"⚠️ Estado desconocido: {estado} - Reseteando a menú")
+        with user_states_lock:
+            user_states[numero_limpio]["paso"] = "menu"
+        enviar_mensaje(
+            "❓ Hubo un error. Volvamos al inicio.\n\n" + 
+            obtener_menu_principal(peluqueria_key),
+            numero
+        )
 
 # ==================== OPCIÓN 1: PEDIR TURNO ====================
 

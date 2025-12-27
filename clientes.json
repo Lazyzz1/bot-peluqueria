@@ -59,8 +59,8 @@
             "18:00"
           ],
           "jueves": [
-            "09:00",
-            "18:00"
+            "09:00", "13:00",
+            "17:00", "21:00"
           ],
           "viernes": [
             "09:00",
@@ -109,6 +109,8 @@
         "id": "miguel",
         "nombre": "Miguel",
         "telefono": "+5491199887766",
+        "activo": true,
+        "mensaje_no_disponible": null,        
         "especialidades": [
           "Corte clásico",
           "Corte moderno"
