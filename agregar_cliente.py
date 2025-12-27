@@ -160,7 +160,7 @@ def agregar_cliente():
             
             id_peluquero = nombre_peluquero.lower().replace(" ", "_")
             
-            # ✅ NUEVO: Pedir teléfono del peluquero
+            # Pedir teléfono del peluquero
             print(f"\n  Teléfono de {nombre_peluquero}:")
             print("  Formato: +5491123456789 (con código de país)")
             print("  Déjalo vacío si no quiere recibir notificaciones")
@@ -173,7 +173,7 @@ def agregar_cliente():
             peluquero = {
                 "id": id_peluquero,
                 "nombre": nombre_peluquero,
-                "telefono": telefono_peluquero,  # ✅ NUEVO CAMPO
+                "telefono": telefono_peluquero,  
                 "especialidades": especialidades,
                 "dias_trabajo": dias_trabajo,
                 "horarios": horarios
@@ -246,7 +246,7 @@ def agregar_cliente():
         "calendar_id": calendar_id,
         "token_file": "tokens/master_token.json",
         "servicios": servicios,
-        "peluqueros": peluqueros  # ✅ NUEVO CAMPO
+        "peluqueros": peluqueros  
     }
     
     if email_cliente:

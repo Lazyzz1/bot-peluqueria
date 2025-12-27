@@ -40,7 +40,7 @@ def test_plantilla(nombre, content_sid, variables, telefono_test):
         print(f"❌ Error: {e}")
         return False
 
-# Tu número para pruebas
+# Número para pruebas
 MI_NUMERO = "+5492974924147"
 
 # Test 1: Confirmación
