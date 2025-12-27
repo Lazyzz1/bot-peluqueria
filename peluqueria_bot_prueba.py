@@ -950,7 +950,7 @@ def enviar_con_plantilla(telefono, content_sid, variables):
 def notificar_peluquero(peluquero, cliente, servicio, fecha_hora, config):
     """
     Envía notificación al peluquero cuando se reserva un turno
-    Usa plantilla aprobada
+    Usa mensaje normal (no plantilla) porque es más confiable
     """
     try:
         telefono_peluquero = peluquero.get("telefono")
@@ -963,22 +963,22 @@ def notificar_peluquero(peluquero, cliente, servicio, fecha_hora, config):
         fecha_formateada = formatear_fecha_espanol(fecha_hora)
         hora = fecha_hora.strftime("%H:%M")
         
-        print(f"📱 Notificando a {peluquero['nombre']} sobre turno de {cliente}")
+        print(f"📱 Enviando notificación a {peluquero['nombre']} ({telefono_peluquero})")
         
-        # Enviar con plantilla "Nuevo turno reservado"
-        resultado = enviar_con_plantilla(
-            telefono=telefono_peluquero,
-            content_sid=TEMPLATE_NUEVO_TURNO,
-            variables={
-                "1": cliente,           # {{1}} = Cliente
-                "2": fecha_formateada,  # {{2}} = Fecha
-                "3": hora,              # {{3}} = Hora
-                "4": servicio           # {{4}} = Servicio
-            }
+        # ✅ Usar mensaje normal (siempre funciona)
+        mensaje_peluquero = (
+            f"🔔 *Nuevo turno reservado*\n\n"
+            f"👤 Cliente: {cliente}\n"
+            f"📅 Fecha: {fecha_formateada}\n"
+            f"🕐 Hora: {hora}\n"
+            f"✂️ Servicio: {servicio}\n\n"
+            f"📍 {config['nombre']}"
         )
         
+        resultado = enviar_mensaje(mensaje_peluquero, telefono_peluquero)
+        
         if resultado:
-            print(f"✅ Notificación con plantilla enviada a {peluquero['nombre']}")
+            print(f"✅ Notificación enviada correctamente a {peluquero['nombre']}")
         else:
             print(f"❌ Error enviando notificación a {peluquero['nombre']}")
         
@@ -986,6 +986,8 @@ def notificar_peluquero(peluquero, cliente, servicio, fecha_hora, config):
         
     except Exception as e:
         print(f"❌ Error en notificar_peluquero: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 
@@ -1397,7 +1399,6 @@ def procesar_seleccion_servicio(numero_limpio, texto, peluqueria_key, numero):
     config = PELUQUERIAS[peluqueria_key]
     
     with user_states_lock:
-        # Usar los servicios filtrados que guardamos
         servicios = user_states[numero_limpio].get("servicios_disponibles", config.get("servicios", []))
         fecha_hora = user_states[numero_limpio]["fecha_hora"]
         cliente = user_states[numero_limpio]["cliente"]
@@ -1426,13 +1427,17 @@ def procesar_seleccion_servicio(numero_limpio, texto, peluqueria_key, numero):
     
     telefono = numero_limpio
 
-    # Crear reserva en Google Calendar con peluquero
+    # Crear reserva en Google Calendar
+    print(f"📅 Creando reserva para {cliente} - {servicio_seleccionado}")
+    
     if crear_reserva_en_calendar(peluqueria_key, fecha_hora, cliente, servicio_seleccionado, telefono, peluquero):
         
         fecha_formateada = formatear_fecha_espanol(fecha_hora)
         hora = fecha_hora.strftime("%H:%M")
         
-        # Enviar confirmación con plantilla
+        print(f"✅ Reserva creada, enviando confirmación...")
+        
+        # ✅ Intentar enviar con plantilla
         resultado = enviar_con_plantilla(
             telefono=numero,
             content_sid=TEMPLATE_CONFIRMACION,
@@ -1446,24 +1451,27 @@ def procesar_seleccion_servicio(numero_limpio, texto, peluqueria_key, numero):
         )
         
         if resultado:
-            print(f"✅ Confirmación enviada correctamente")
+            print(f"✅ Confirmación enviada con plantilla")
         else:
-            # Fallback: enviar mensaje normal si falla la plantilla
+            # ✅ Fallback: enviar mensaje normal si falla la plantilla
+            print(f"⚠️ Plantilla falló, usando mensaje normal")
             enviar_mensaje(
                 f"✅ *Turno confirmado*\n\n"
                 f"👤 Cliente: {cliente}\n"
                 f"📅 Fecha: {fecha_formateada}\n"
                 f"🕐 Hora: {hora}\n"
                 f"✂️ Servicio: {servicio_seleccionado}\n\n"
-                f"¡Te esperamos! 💈",
+                f"¡Te esperamos en {config['nombre']}! 💈",
                 numero
             )
         
         # Notificar al peluquero
         if peluquero:
+            print(f"📱 Notificando a peluquero: {peluquero['nombre']}")
             notificar_peluquero(peluquero, cliente, servicio_seleccionado, fecha_hora, config)
         
     else:
+        print(f"❌ Error creando reserva en Calendar")
         enviar_mensaje(
             "❌ Hubo un error al crear la reserva. Por favor intentá de nuevo.\n\n"
             "Escribí *menu* para volver.",
@@ -1472,6 +1480,7 @@ def procesar_seleccion_servicio(numero_limpio, texto, peluqueria_key, numero):
 
     with user_states_lock:
         user_states[numero_limpio]["paso"] = "menu"
+
         
 def procesar_confirmacion_servicios(numero_limpio, texto, peluqueria_key, numero):
     """Procesa la confirmación de servicios seleccionados"""
@@ -1825,8 +1834,12 @@ def procesar_confirmacion_cancelacion(numero_limpio, texto, peluqueria_key, nume
                     user_states[numero_limpio]["paso"] = "menu"
                 return
             
-            # UNA SOLA VEZ: Intentar cancelar el turno
+            print(f"🗑️ Cancelando turno ID: {turno['id']}")
+            
+            # ✅ UNA SOLA VEZ: Intentar cancelar el turno
             if cancelar_turno(peluqueria_key, turno["id"]):
+                print(f"✅ Turno cancelado exitosamente en Calendar")
+                
                 try:
                     fecha = turno["inicio"].strftime("%d/%m/%Y")
                     hora = turno["inicio"].strftime("%H:%M")
@@ -1837,7 +1850,7 @@ def procesar_confirmacion_cancelacion(numero_limpio, texto, peluqueria_key, nume
                     nombre_cliente = partes[-1] if len(partes) >= 3 else "Cliente"
                     servicio = partes[-2] if len(partes) >= 3 else partes[0] if partes else "Servicio"
                     
-                    # Enviar confirmación al cliente
+                    # ✅ Confirmar al cliente
                     enviar_mensaje(
                         f"✅ Turno cancelado exitosamente\n\n"
                         f"📅 {fecha} a las {hora}\n\n"
@@ -1845,12 +1858,12 @@ def procesar_confirmacion_cancelacion(numero_limpio, texto, peluqueria_key, nume
                         numero
                     )
                     
-                    # Notificar al peluquero sobre la cancelación
+                    # ✅ Notificar al peluquero
                     config = PELUQUERIAS.get(peluqueria_key, {})
                     
                     # Buscar peluquero en el resumen
-                    nombre_peluquero = None
                     telefono_peluquero = None
+                    nombre_peluquero = None
                     
                     for peluquero in config.get("peluqueros", []):
                         if peluquero["nombre"] in resumen:
@@ -1861,33 +1874,23 @@ def procesar_confirmacion_cancelacion(numero_limpio, texto, peluqueria_key, nume
                     if telefono_peluquero:
                         print(f"📱 Notificando cancelación a {nombre_peluquero}")
                         
-                        # Usar plantilla de turno modificado
-                        resultado = enviar_con_plantilla(
-                            telefono=telefono_peluquero,
-                            content_sid=TEMPLATE_MODIFICADO,
-                            variables={
-                                "1": nombre_cliente,  # {{1}} = Cliente
-                                "2": fecha,           # {{2}} = Fecha
-                                "3": hora,            # {{3}} = Hora
-                                "4": servicio         # {{4}} = Servicio
-                            }
+                        # Usar mensaje normal para cancelación
+                        mensaje_cancelacion = (
+                            f"❌ *Turno cancelado*\n\n"
+                            f"👤 Cliente: {nombre_cliente}\n"
+                            f"📆 Fecha: {fecha}\n"
+                            f"⏰ Hora: {hora}\n"
+                            f"✂️ Servicio: {servicio}\n\n"
+                            f"📍 {config['nombre']}"
                         )
                         
-                        if resultado:
+                        if enviar_mensaje(mensaje_cancelacion, telefono_peluquero):
                             print(f"✅ Notificación de cancelación enviada a {nombre_peluquero}")
                         else:
-                            # Fallback: mensaje normal
-                            mensaje_cancelacion = (
-                                f"❌ *Turno cancelado*\n\n"
-                                f"👤 Cliente: {nombre_cliente}\n"
-                                f"📆 Fecha: {fecha}\n"
-                                f"⏰ Hora: {hora}\n"
-                                f"📍 {config['nombre']}"
-                            )
-                            enviar_mensaje(mensaje_cancelacion, telefono_peluquero)
+                            print(f"⚠️ No se pudo notificar a {nombre_peluquero}")
                     
                 except Exception as e:
-                    print(f"⚠️ Error en notificación de cancelación: {e}")
+                    print(f"⚠️ Error en notificaciones: {e}")
                     # Aún así confirmar al cliente
                     enviar_mensaje(
                         "✅ Turno cancelado exitosamente\n\n"
@@ -1895,7 +1898,8 @@ def procesar_confirmacion_cancelacion(numero_limpio, texto, peluqueria_key, nume
                         numero
                     )
             else:
-                # ❌ Error al cancelar en Google Calendar
+                # ❌ Error al cancelar
+                print(f"❌ Error cancelando turno en Google Calendar")
                 enviar_mensaje(
                     "❌ Hubo un error al cancelar el turno.\n\n"
                     "Por favor intentá más tarde o contacta al negocio.",
@@ -2062,7 +2066,6 @@ def procesar_seleccion_peluquero(numero_limpio, texto, peluqueria_key, numero):
     try:
         # Obtener lista de peluqueros activos del estado del usuario
         with user_states_lock:
-            # Usar la lista filtrada que guardamos en procesar_pedir_turno_inicio
             peluqueros = user_states[numero_limpio].get("peluqueros_disponibles", [])
         
         # Si no existe la lista filtrada, obtener de config (fallback)
@@ -2075,7 +2078,7 @@ def procesar_seleccion_peluquero(numero_limpio, texto, peluqueria_key, numero):
         if 0 <= index < len(peluqueros):
             peluquero_seleccionado = peluqueros[index]
             
-            # Verificar nuevamente que esté activo (por si cambió)
+            # Verificar que esté activo
             if not peluquero_seleccionado.get("activo", True):
                 enviar_mensaje(
                     f"😕 {peluquero_seleccionado['nombre']} no está disponible en este momento.\n\n"
@@ -2086,11 +2089,13 @@ def procesar_seleccion_peluquero(numero_limpio, texto, peluqueria_key, numero):
                     user_states[numero_limpio]["paso"] = "menu"
                 return
             
+            # ✅ CRÍTICO: Guardar peluquero ANTES de generar los días
             with user_states_lock:
                 user_states[numero_limpio]["peluquero"] = peluquero_seleccionado
-                user_states[numero_limpio]["paso"] = "seleccionar_dia"
             
-            # Ahora mostrar días disponibles para este peluquero
+            print(f"✅ Peluquero guardado: {peluquero_seleccionado['nombre']}")
+            
+            # Ahora generar días disponibles para este peluquero
             hoy = datetime.now().date()
             dias = []
             dias_semana_map = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
@@ -2113,14 +2118,18 @@ def procesar_seleccion_peluquero(numero_limpio, texto, peluqueria_key, numero):
                     user_states[numero_limpio]["paso"] = "menu"
                 return
             
+            # ✅ Guardar días Y cambiar paso JUNTOS
             with user_states_lock:
                 user_states[numero_limpio]["dias"] = dias
+                user_states[numero_limpio]["paso"] = "seleccionar_dia"
             
+            print(f"✅ Estado cambiado a: seleccionar_dia con {len(dias)} días disponibles")
+            
+            # Mostrar días
             dias_espanol = {0: 'Lun', 1: 'Mar', 2: 'Mié', 3: 'Jue', 4: 'Vie', 5: 'Sáb', 6: 'Dom'}
             lista = "\n".join(
                 formatear_item_lista(i, f"{dias_espanol[d.weekday()]} {d.strftime('%d/%m')}")
                 for i, d in enumerate(dias)
-
             )
             
             enviar_mensaje(
@@ -2142,6 +2151,7 @@ def procesar_seleccion_peluquero(numero_limpio, texto, peluqueria_key, numero):
         )
         with user_states_lock:
             user_states[numero_limpio]["paso"] = "menu"
+
 
 # ==================== OPCIÓN 0: SALIR ====================
 
