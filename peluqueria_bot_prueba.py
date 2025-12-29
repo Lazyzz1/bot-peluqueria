@@ -190,6 +190,8 @@ def obtener_peluqueros_disponibles(peluqueria_key, dia_seleccionado, servicio=No
 def obtener_horarios_peluquero(peluqueria_key, dia_seleccionado, peluquero_id):
     """
     Obtiene horarios disponibles de un peluquero específico
+    ✅ SOPORTA HORARIOS PARTIDOS (mañana y tarde)
+    ✅ MANEJA FORMATO MIXTO CORRECTAMENTE
     """
     try:
         config = PELUQUERIAS.get(peluqueria_key, {})
@@ -203,6 +205,7 @@ def obtener_horarios_peluquero(peluqueria_key, dia_seleccionado, peluquero_id):
                 break
         
         if not peluquero:
+            print(f"❌ Peluquero {peluquero_id} no encontrado")
             return []
         
         # Obtener horarios del peluquero para ese día
@@ -210,79 +213,122 @@ def obtener_horarios_peluquero(peluqueria_key, dia_seleccionado, peluquero_id):
         dia_nombre = dias_semana[dia_seleccionado.weekday()]
         
         horarios_dia = peluquero.get("horarios", {}).get(dia_nombre)
+        
         if not horarios_dia:
+            print(f"❌ {peluquero['nombre']} no trabaja los {dia_nombre}")
             return []
         
-        hora_inicio_str, hora_fin_str = horarios_dia
-        
-        # Convertir a datetime
         tz = pytz.timezone('America/Argentina/Buenos_Aires')
         ahora = datetime.now(tz)
         
-        hora_inicio = tz.localize(
-            datetime.combine(dia_seleccionado, datetime.min.time()).replace(
-                hour=int(hora_inicio_str.split(':')[0]),
-                minute=int(hora_inicio_str.split(':')[1])
-            )
-        )
+        # ✅ CRÍTICO: Normalizar formato ANTES de procesar
+        # Detectar si primer elemento es string (formato viejo) o list (formato nuevo)
+        if horarios_dia and isinstance(horarios_dia[0], str):
+            # Formato viejo: ["09:00", "18:00"] → [["09:00", "18:00"]]
+            horarios_dia = [horarios_dia]
+            print(f"📅 {peluquero['nombre']} - {dia_nombre}: formato viejo convertido")
+        else:
+            print(f"📅 {peluquero['nombre']} - {dia_nombre}: formato nuevo (partidos)")
         
-        hora_fin = tz.localize(
-            datetime.combine(dia_seleccionado, datetime.min.time()).replace(
-                hour=int(hora_fin_str.split(':')[0]),
-                minute=int(hora_fin_str.split(':')[1])
-            )
-        )
-        
-        # Si es hoy, ajustar hora_inicio
-        if dia_seleccionado == ahora.date():
-            if ahora > hora_inicio:
-                minutos = (ahora.minute // 30 + 1) * 30
-                if minutos >= 60:
-                    hora_inicio = ahora.replace(hour=ahora.hour + 1, minute=0, second=0, microsecond=0)
-                else:
-                    hora_inicio = ahora.replace(minute=minutos, second=0, microsecond=0)
-        
-        # Obtener eventos ocupados del calendario
+        # Obtener servicio de Calendar
         service = get_calendar_service(peluqueria_key)
         calendar_id = get_calendar_config(peluqueria_key)
         
         if not service:
+            print(f"❌ No se pudo obtener servicio de Calendar")
             return []
         
-        eventos = service.events().list(
-            calendarId=calendar_id,
-            timeMin=hora_inicio.isoformat(),
-            timeMax=hora_fin.isoformat(),
-            singleEvents=True,
-            orderBy='startTime'
-        ).execute()
-        
-        # Filtrar solo los eventos de este peluquero
-        ocupados = []
-        if "items" in eventos:
-            for event in eventos["items"]:
-                try:
-                    # Verificar si el evento es de este peluquero
-                    descripcion = event.get("description", "")
-                    if f"Peluquero: {peluquero['nombre']}" in descripcion:
-                        start = datetime.fromisoformat(event["start"]["dateTime"].replace("Z", "+00:00"))
-                        ocupados.append(start)
-                except Exception:
-                    continue
-        
-        # Generar horarios libres
+        # ✅ Procesar cada rango horario
         horarios_libres = []
-        horario = hora_inicio
-        while horario < hora_fin:
-            if not esta_ocupado(horario, ocupados):
-                horarios_libres.append(horario)
-            horario += timedelta(minutes=30)
         
+        for idx, rango in enumerate(horarios_dia):
+            # ✅ Validación estricta
+            if not isinstance(rango, list) or len(rango) != 2:
+                print(f"❌ Rango inválido en posición {idx}: {rango}")
+                continue
+            
+            hora_inicio_str, hora_fin_str = rango
+            
+            # ✅ Validar que sean strings
+            if not isinstance(hora_inicio_str, str) or not isinstance(hora_fin_str, str):
+                print(f"❌ Formato de hora inválido: {hora_inicio_str}, {hora_fin_str}")
+                continue
+            
+            try:
+                # Parsear horas
+                hora_inicio = tz.localize(
+                    datetime.combine(dia_seleccionado, datetime.min.time()).replace(
+                        hour=int(hora_inicio_str.split(':')[0]),
+                        minute=int(hora_inicio_str.split(':')[1])
+                    )
+                )
+                
+                hora_fin = tz.localize(
+                    datetime.combine(dia_seleccionado, datetime.min.time()).replace(
+                        hour=int(hora_fin_str.split(':')[0]),
+                        minute=int(hora_fin_str.split(':')[1])
+                    )
+                )
+                
+            except (ValueError, IndexError) as e:
+                print(f"❌ Error parseando {hora_inicio_str}-{hora_fin_str}: {e}")
+                continue
+            
+            # Si es hoy, ajustar hora_inicio
+            if dia_seleccionado == ahora.date():
+                if ahora > hora_inicio:
+                    minutos = (ahora.minute // 30 + 1) * 30
+                    if minutos >= 60:
+                        hora_inicio = ahora.replace(hour=ahora.hour + 1, minute=0, second=0, microsecond=0)
+                    else:
+                        hora_inicio = ahora.replace(minute=minutos, second=0, microsecond=0)
+                
+                # Si ya pasó este rango, continuar
+                if ahora >= hora_fin:
+                    print(f"⏭️ Rango {hora_inicio_str}-{hora_fin_str} ya pasó")
+                    continue
+            
+            # Obtener eventos ocupados
+            try:
+                eventos = service.events().list(
+                    calendarId=calendar_id,
+                    timeMin=hora_inicio.isoformat(),
+                    timeMax=hora_fin.isoformat(),
+                    singleEvents=True,
+                    orderBy='startTime'
+                ).execute()
+            except Exception as e:
+                print(f"❌ Error obteniendo eventos: {e}")
+                continue
+            
+            # Filtrar eventos de este peluquero
+            ocupados = []
+            if "items" in eventos:
+                for event in eventos["items"]:
+                    try:
+                        descripcion = event.get("description", "")
+                        if f"Peluquero: {peluquero['nombre']}" in descripcion:
+                            start = datetime.fromisoformat(event["start"]["dateTime"].replace("Z", "+00:00"))
+                            ocupados.append(start)
+                    except Exception:
+                        continue
+            
+            # Generar slots libres
+            horario = hora_inicio
+            while horario < hora_fin:
+                if not esta_ocupado(horario, ocupados):
+                    horarios_libres.append(horario)
+                horario += timedelta(minutes=30)
+        
+        print(f"✅ {peluquero['nombre']} - {dia_nombre}: {len(horarios_libres)} slots disponibles")
         return horarios_libres
         
     except Exception as e:
-        print(f"❌ Error obteniendo horarios de peluquero: {e}")
+        print(f"❌ Error obteniendo horarios: {e}")
+        import traceback
+        traceback.print_exc()
         return []
+
 
 # ==================== GOOGLE TOKEN ====================
 
@@ -947,10 +993,10 @@ def enviar_con_plantilla(telefono, content_sid, variables):
         return False
 
 
-def notificar_peluquero(peluquero, cliente, servicio, fecha_hora, config):
+def notificar_peluquero(peluquero, cliente, servicio, fecha_hora, config, telefono_cliente=None):
     """
     Envía notificación al peluquero cuando se reserva un turno
-    Usa mensaje normal (no plantilla) porque es más confiable
+    Incluye teléfono del cliente
     """
     try:
         telefono_peluquero = peluquero.get("telefono")
@@ -963,12 +1009,33 @@ def notificar_peluquero(peluquero, cliente, servicio, fecha_hora, config):
         fecha_formateada = formatear_fecha_espanol(fecha_hora)
         hora = fecha_hora.strftime("%H:%M")
         
-        print(f"📱 Enviando notificación a {peluquero['nombre']} ({telefono_peluquero})")
+        # ✅ Limpiar y formatear teléfono del cliente
+        telefono_mostrar = "No disponible"
+        if telefono_cliente:
+            # Quitar "whatsapp:" si existe
+            tel_limpio = telefono_cliente.replace("whatsapp:", "").strip()
+            
+            # Formatear bonito: +54 9 11 1234-5678
+            if tel_limpio.startswith("+549"):
+                # Argentino con 9
+                telefono_mostrar = f"+54 9 {tel_limpio[3:5]} {tel_limpio[5:9]}-{tel_limpio[9:]}"
+            elif tel_limpio.startswith("+54"):
+                # Argentino sin 9
+                telefono_mostrar = f"+54 {tel_limpio[3:5]} {tel_limpio[5:9]}-{tel_limpio[9:]}"
+            elif tel_limpio.startswith("+1"):
+                # USA
+                telefono_mostrar = f"+1 ({tel_limpio[2:5]}) {tel_limpio[5:8]}-{tel_limpio[8:]}"
+            else:
+                # Otro formato, mostrar tal cual con espacios
+                telefono_mostrar = tel_limpio
         
-        # ✅ Usar mensaje normal (siempre funciona)
+        print(f"📱 Notificando a {peluquero['nombre']} ({telefono_peluquero})")
+        
+        # Mensaje con teléfono del cliente
         mensaje_peluquero = (
             f"🔔 *Nuevo turno reservado*\n\n"
             f"👤 Cliente: {cliente}\n"
+            f"📞 Teléfono: {telefono_mostrar}\n"
             f"📅 Fecha: {fecha_formateada}\n"
             f"🕐 Hora: {hora}\n"
             f"✂️ Servicio: {servicio}\n\n"
