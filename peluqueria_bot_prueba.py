@@ -996,7 +996,7 @@ def enviar_con_plantilla(telefono, content_sid, variables):
 def notificar_peluquero(peluquero, cliente, servicio, fecha_hora, config, telefono_cliente=None):
     """
     Envía notificación al peluquero cuando se reserva un turno
-    Incluye teléfono del cliente
+    ✅ Incluye teléfono del cliente
     """
     try:
         telefono_peluquero = peluquero.get("telefono")
@@ -1009,29 +1009,55 @@ def notificar_peluquero(peluquero, cliente, servicio, fecha_hora, config, telefo
         fecha_formateada = formatear_fecha_espanol(fecha_hora)
         hora = fecha_hora.strftime("%H:%M")
         
-        # ✅ Limpiar y formatear teléfono del cliente
+        # ✅ DEBUG: Verificar qué llega
+        print(f"\n{'='*60}")
+        print(f"📞 DEBUG NOTIFICACIÓN:")
+        print(f"   Peluquero: {peluquero['nombre']}")
+        print(f"   Tel peluquero: {telefono_peluquero}")
+        print(f"   Cliente: {cliente}")
+        print(f"   Tel cliente recibido: {telefono_cliente}")
+        print(f"   Tipo: {type(telefono_cliente)}")
+        print(f"{'='*60}\n")
+        
+        # ✅ Formatear teléfono del cliente
         telefono_mostrar = "No disponible"
+        
         if telefono_cliente:
-            # Quitar "whatsapp:" si existe
-            tel_limpio = telefono_cliente.replace("whatsapp:", "").strip()
+            # Limpiar cualquier cosa rara
+            tel_limpio = str(telefono_cliente).replace("whatsapp:", "").strip()
             
-            # Formatear bonito: +54 9 11 1234-5678
+            print(f"   Tel limpio: {tel_limpio}")
+            
+            # Formatear según país
             if tel_limpio.startswith("+549"):
-                # Argentino con 9
-                telefono_mostrar = f"+54 9 {tel_limpio[3:5]} {tel_limpio[5:9]}-{tel_limpio[9:]}"
+                # Argentina con 9: +54 9 297 4210-130
+                codigo_area = tel_limpio[4:7]  # 297
+                primera_parte = tel_limpio[7:11]  # 4210
+                segunda_parte = tel_limpio[11:]  # 130
+                telefono_mostrar = f"+54 9 {codigo_area} {primera_parte}-{segunda_parte}"
+                
             elif tel_limpio.startswith("+54"):
-                # Argentino sin 9
-                telefono_mostrar = f"+54 {tel_limpio[3:5]} {tel_limpio[5:9]}-{tel_limpio[9:]}"
+                # Argentina sin 9
+                codigo_area = tel_limpio[3:6]
+                primera_parte = tel_limpio[6:10]
+                segunda_parte = tel_limpio[10:]
+                telefono_mostrar = f"+54 {codigo_area} {primera_parte}-{segunda_parte}"
+                
             elif tel_limpio.startswith("+1"):
-                # USA
-                telefono_mostrar = f"+1 ({tel_limpio[2:5]}) {tel_limpio[5:8]}-{tel_limpio[8:]}"
+                # USA: +1 (262) 476-7007
+                area = tel_limpio[2:5]
+                primera = tel_limpio[5:8]
+                segunda = tel_limpio[8:]
+                telefono_mostrar = f"+1 ({area}) {primera}-{segunda}"
             else:
-                # Otro formato, mostrar tal cual con espacios
+                # Otro formato
                 telefono_mostrar = tel_limpio
+            
+            print(f"   Tel formateado: {telefono_mostrar}")
+        else:
+            print(f"   ⚠️ telefono_cliente es None o vacío")
         
-        print(f"📱 Notificando a {peluquero['nombre']} ({telefono_peluquero})")
-        
-        # Mensaje con teléfono del cliente
+        # Crear mensaje
         mensaje_peluquero = (
             f"🔔 *Nuevo turno reservado*\n\n"
             f"👤 Cliente: {cliente}\n"
@@ -1042,12 +1068,15 @@ def notificar_peluquero(peluquero, cliente, servicio, fecha_hora, config, telefo
             f"📍 {config['nombre']}"
         )
         
+        print(f"\n📱 Enviando notificación a {telefono_peluquero}")
+        print(f"📄 Mensaje:\n{mensaje_peluquero}\n")
+        
         resultado = enviar_mensaje(mensaje_peluquero, telefono_peluquero)
         
         if resultado:
-            print(f"✅ Notificación enviada correctamente a {peluquero['nombre']}")
+            print(f"✅ Notificación enviada correctamente")
         else:
-            print(f"❌ Error enviando notificación a {peluquero['nombre']}")
+            print(f"❌ Error enviando notificación")
         
         return resultado
         
@@ -1056,6 +1085,7 @@ def notificar_peluquero(peluquero, cliente, servicio, fecha_hora, config, telefo
         import traceback
         traceback.print_exc()
         return False
+
 
 
 def detectar_peluqueria(to_number):
@@ -1512,86 +1542,44 @@ def procesar_seleccion_servicio(numero_limpio, texto, peluqueria_key, numero):
         cliente = user_states[numero_limpio]["cliente"]
         peluquero = user_states[numero_limpio].get("peluquero")
     
-    # ✅ NUEVO: Parsear selección múltiple (ej: "1,2,3" o "1, 2, 3")
+    # [... código de parseo de servicios ...]
+    
     servicios_seleccionados = []
     duracion_total = 0
     
     try:
-        # Detectar si es selección múltiple (contiene comas)
         if ',' in texto:
-            # Parsear múltiples números
             indices = [int(num.strip()) - 1 for num in texto.split(',')]
-            
             for index in indices:
                 if 0 <= index < len(servicios_disponibles):
                     servicio = servicios_disponibles[index]
                     servicios_seleccionados.append(servicio)
                     duracion_total += servicio.get("duracion", 30)
-                else:
-                    enviar_mensaje(
-                        f"❌ El número {index + 1} no es válido.\n\n"
-                        "Escribí *menu* para volver.",
-                        numero
-                    )
-                    return
         else:
-            # Selección única
             index = int(texto) - 1
             if 0 <= index < len(servicios_disponibles):
                 servicio = servicios_disponibles[index]
                 servicios_seleccionados.append(servicio)
                 duracion_total = servicio.get("duracion", 30)
-            else:
-                enviar_mensaje(
-                    "❌ Número de servicio inválido.\n\n"
-                    "Escribí *menu* para volver.",
-                    numero
-                )
-                return
-    
     except ValueError:
-        # No es número(s), intentar buscar por texto
         servicio_texto = texto.title()
-        servicio_encontrado = None
-        
         for serv in servicios_disponibles:
             if serv["nombre"].lower() == texto.lower():
-                servicio_encontrado = serv
+                servicios_seleccionados.append(serv)
+                duracion_total = serv.get("duracion", 30)
                 break
-        
-        if servicio_encontrado:
-            servicios_seleccionados.append(servicio_encontrado)
-            duracion_total = servicio_encontrado.get("duracion", 30)
-        else:
-            enviar_mensaje(
-                "❌ Servicio no válido.\n\n"
-                "Escribí *menu* para volver a empezar.",
-                numero
-            )
-            with user_states_lock:
-                user_states[numero_limpio]["paso"] = "menu"
-            return
     
     if not servicios_seleccionados:
-        enviar_mensaje(
-            "❌ No se seleccionó ningún servicio válido.\n\n"
-            "Escribí *menu* para volver.",
-            numero
-        )
+        enviar_mensaje("❌ Servicio no válido.\n\nEscribí *menu* para volver.", numero)
         return
     
-    # ✅ Crear nombres legibles de servicios
+    # Crear nombres legibles
     if len(servicios_seleccionados) == 1:
         nombre_servicios = servicios_seleccionados[0]["nombre"]
     else:
         nombre_servicios = " + ".join(s["nombre"] for s in servicios_seleccionados)
     
-    # Calcular precio total
     precio_total = sum(s["precio"] for s in servicios_seleccionados)
-    
-    print(f"✅ Servicios seleccionados: {nombre_servicios}")
-    print(f"💰 Precio total: ${precio_total}")
-    print(f"⏱️ Duración total: {duracion_total} minutos")
     
     # Validar disponibilidad de tiempo
     dia_seleccionado = user_states[numero_limpio].get("dia")
@@ -1600,24 +1588,30 @@ def procesar_seleccion_servicio(numero_limpio, texto, peluqueria_key, numero):
     
     if hora_fin_turno > hora_cierre:
         minutos_faltantes = int((hora_fin_turno - hora_cierre).total_seconds() / 60)
-        
         enviar_mensaje(
             f"⏰ *No hay suficiente tiempo*\n\n"
-            f"Los servicios seleccionados duran *{duracion_total} minutos*\n\n"
+            f"Los servicios duran *{duracion_total} minutos*\n\n"
             f"📅 Inicio: {fecha_hora.strftime('%H:%M')}\n"
-            f"⏱️ Fin estimado: {hora_fin_turno.strftime('%H:%M')}\n"
+            f"⏱️ Fin: {hora_fin_turno.strftime('%H:%M')}\n"
             f"🔒 Cierre: {hora_cierre.strftime('%H:%M')}\n\n"
-            f"❌ Faltan {minutos_faltantes} minutos de tiempo disponible.\n\n"
-            f"*Opciones:*\n"
-            f"1️⃣ Elegir otro horario (escribí *menu*)\n"
-            f"2️⃣ Elegir menos servicios",
+            f"❌ Faltan {minutos_faltantes} minutos.\n\n"
+            f"Escribí *menu* para elegir otro horario.",
             numero
         )
         return
     
-    telefono = numero_limpio
+    # ✅ CRÍTICO: Usar numero_limpio (sin whatsapp:)
+    telefono_cliente = numero_limpio  # +5492974210130
     
-    # ✅ Crear reserva con múltiples servicios
+    # ✅ DEBUG: Verificar el teléfono
+    print(f"\n{'='*60}")
+    print(f"📞 DEBUG TELÉFONO CLIENTE:")
+    print(f"   numero (con whatsapp:): {numero}")
+    print(f"   numero_limpio: {numero_limpio}")
+    print(f"   telefono_cliente: {telefono_cliente}")
+    print(f"{'='*60}\n")
+    
+    # Crear reserva
     print(f"📅 Creando reserva para {cliente} - {nombre_servicios}")
     
     if crear_reserva_multiple(
@@ -1626,7 +1620,7 @@ def procesar_seleccion_servicio(numero_limpio, texto, peluqueria_key, numero):
         cliente, 
         servicios_seleccionados,
         duracion_total,
-        telefono, 
+        telefono_cliente,  # ✅ Pasar sin whatsapp:
         peluquero
     ):
         fecha_formateada = formatear_fecha_espanol(fecha_hora)
@@ -1634,24 +1628,20 @@ def procesar_seleccion_servicio(numero_limpio, texto, peluqueria_key, numero):
         
         print(f"✅ Reserva creada, enviando confirmación...")
         
-        # ✅ Enviar confirmación con plantilla
+        # Enviar confirmación
         resultado = enviar_con_plantilla(
-            telefono=numero,
+            telefono=numero,  # ← Aquí SÍ va con whatsapp: para Twilio
             content_sid=TEMPLATE_CONFIRMACION,
             variables={
                 "1": cliente,
                 "2": fecha_formateada,
                 "3": hora,
-                "4": nombre_servicios,  # ✅ Ahora envía "Corte clásico + Barba"
+                "4": nombre_servicios,
                 "5": config['nombre']
             }
         )
         
-        if resultado:
-            print(f"✅ Confirmación enviada con plantilla")
-        else:
-            # Fallback: enviar mensaje normal
-            print(f"⚠️ Plantilla falló, usando mensaje normal")
+        if not resultado:
             enviar_mensaje(
                 f"✅ *Turno confirmado*\n\n"
                 f"👤 Cliente: {cliente}\n"
@@ -1659,25 +1649,29 @@ def procesar_seleccion_servicio(numero_limpio, texto, peluqueria_key, numero):
                 f"🕐 Hora: {hora}\n"
                 f"✂️ Servicio(s): {nombre_servicios}\n"
                 f"💰 Total: ${precio_total:,}\n\n"
-                f"¡Te esperamos en {config['nombre']}! 💈",
+                f"¡Te esperamos! 💈".replace(',', '.'),
                 numero
             )
         
-        # ✅ Notificar al peluquero con nombre correcto
+        # ✅ Notificar al peluquero CON teléfono
         if peluquero:
             print(f"📱 Notificando a peluquero: {peluquero['nombre']}")
-            notificar_peluquero(peluquero, cliente, nombre_servicios, fecha_hora, config)
-        
+            print(f"   Teléfono cliente a enviar: {telefono_cliente}")
+            
+            notificar_peluquero(
+                peluquero, 
+                cliente, 
+                nombre_servicios, 
+                fecha_hora, 
+                config, 
+                telefono_cliente  # ✅ SIN whatsapp:
+            )
     else:
-        print(f"❌ Error creando reserva en Calendar")
-        enviar_mensaje(
-            "❌ Hubo un error al crear la reserva. Por favor intentá de nuevo.\n\n"
-            "Escribí *menu* para volver.",
-            numero
-        )
+        enviar_mensaje("❌ Error al crear la reserva.\n\nEscribí *menu*", numero)
 
     with user_states_lock:
         user_states[numero_limpio]["paso"] = "menu"
+
 
 
         
@@ -1803,7 +1797,6 @@ def procesar_confirmacion_servicios(numero_limpio, texto, peluqueria_key, numero
 def crear_reserva_multiple(peluqueria_key, fecha_hora, cliente, servicios, duracion_total, telefono, peluquero=None):
     """
     Crea un evento en Google Calendar con múltiples servicios
-    La duración se ajusta según los servicios seleccionados
     """
     try:
         if peluqueria_key not in PELUQUERIAS:
@@ -1815,13 +1808,12 @@ def crear_reserva_multiple(peluqueria_key, fecha_hora, cliente, servicios, durac
         if not service:
             return False
 
-        # Crear resumen del evento
+        # Crear resumen
         if len(servicios) == 1:
             nombre_servicios = servicios[0]['nombre']
         else:
             nombre_servicios = " + ".join(s['nombre'] for s in servicios)
         
-        # Calcular precio total
         precio_total = sum(s['precio'] for s in servicios)
         
         # Descripción detallada
@@ -1830,9 +1822,10 @@ def crear_reserva_multiple(peluqueria_key, fecha_hora, cliente, servicios, durac
             for s in servicios
         )
         
+        # ✅ IMPORTANTE: Asegurarse que el teléfono se guarde en descripción
         descripcion = (
             f"Cliente: {cliente}\n"
-            f"Tel: {telefono}\n"
+            f"Tel: {telefono}\n"  # ✅ Debe estar SIN whatsapp:
             f"\nServicios:\n{lista_servicios}\n"
             f"\nTotal: ${precio_total:,}".replace(',', '.') + "\n"
             f"Duración total: {duracion_total} min"
@@ -1841,10 +1834,13 @@ def crear_reserva_multiple(peluqueria_key, fecha_hora, cliente, servicios, durac
         if peluquero:
             descripcion += f"\nPeluquero: {peluquero['nombre']}"
         
-        # Título del evento
+        # ✅ DEBUG
+        print(f"\n📝 Descripción del evento:")
+        print(descripcion)
+        print()
+        
         summary = f"{peluquero['nombre'] if peluquero else 'Turno'} - {nombre_servicios} - {cliente}"
         
-        # Crear evento con duración personalizada
         evento = {
             'summary': summary,
             'start': {
@@ -1856,7 +1852,7 @@ def crear_reserva_multiple(peluqueria_key, fecha_hora, cliente, servicios, durac
                 'timeZone': 'America/Argentina/Buenos_Aires'
             },
             'description': descripcion,
-            'colorId': '9' if len(servicios) > 1 else None  # Azul para múltiples servicios
+            'colorId': '9' if len(servicios) > 1 else None
         }
 
         service.events().insert(
