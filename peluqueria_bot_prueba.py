@@ -1200,7 +1200,7 @@ def webhook():
                 user_states[numero_limpio]["peluqueria"] = peluqueria_key
         
         # ✅ NUEVO: Comandos globales para volver al menú (más flexibles)
-        comandos_menu = ["menu", "menú", "inicio", "hola", "hi", "hey", "buenas", "buenos dias", "buenas tardes", "buen dia"]
+        comandos_menu = ["menu", "menú", "inicio", "hola", "hi", "hey", "buenas", "buenos dias", "buenas tardes", "buen dia", "hola, quiero probar el bot", "quiero probar el bot", "probar el bot"]
         
         if texto in comandos_menu:
             print(f"📋 Comando de menú detectado: '{texto}'")
@@ -1226,7 +1226,7 @@ def webhook():
                 # ✅ NO es una opción válida, mostrar el menú
                 print(f"❓ Mensaje no reconocido en menú: '{texto}' -> Mostrando menú")
                 enviar_mensaje(
-                    f"👋 ¡Hola! No entendí tu mensaje.\n\n" + 
+                    f"No entendí tu mensaje. Pero te dejo el menú\n\n" + 
                     obtener_menu_principal(peluqueria_key),
                     numero
                 )

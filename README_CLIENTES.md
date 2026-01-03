@@ -24,5 +24,8 @@ El bot detectará automáticamente el nuevo cliente.
 
 ## Precios sugeridos
 - **Cliente paga**: USD $80-100/mes
-- **Tus costos**: USD $4-5/mes
+- **Tus costos**: USD $30/mes
 - **Tu ganancia**: USD $75-95/mes por cliente
+
+### 4. Números de clientes.
+- **Peluquería "nombre"**: +17622660178
