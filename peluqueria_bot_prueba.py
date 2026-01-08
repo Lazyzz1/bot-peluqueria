@@ -441,7 +441,7 @@ def obtener_horarios_disponibles(peluqueria_key, dia_seleccionado=None):
         else:
             # Horarios por defecto
             hora_apertura = 8
-            hora_cierre = 19
+            hora_cierre = 21
 
         hora_inicio = tz.localize(
             datetime.combine(dia_seleccionado, datetime.min.time()).replace(hour=hora_apertura)
@@ -530,7 +530,7 @@ def obtener_hora_cierre(peluqueria_key, dia_seleccionado, peluquero=None):
             hora_cierre_str = horario_config[1]  # [apertura, cierre]
         else:
             # Horario por defecto
-            hora_cierre_str = "19:00" if dia_nombre != "sabado" else "14:00"
+            hora_cierre_str = "21:00" if dia_nombre != "sabado" else "14:00"
         
         hora_cierre = tz.localize(
             datetime.combine(dia_seleccionado, datetime.min.time()).replace(
@@ -546,7 +546,7 @@ def obtener_hora_cierre(peluqueria_key, dia_seleccionado, peluquero=None):
         # Retornar hora por defecto en caso de error
         tz = pytz.timezone('America/Argentina/Buenos_Aires')
         return tz.localize(
-            datetime.combine(dia_seleccionado, datetime.min.time()).replace(hour=19, minute=0)
+            datetime.combine(dia_seleccionado, datetime.min.time()).replace(hour=21, minute=0)
         )
 
 def obtener_turnos_cliente(peluqueria_key, telefono):
@@ -1181,7 +1181,7 @@ def webhook():
         numero_limpio = numero.replace('whatsapp:', '')
         texto = incoming_msg
         
-        # ✅ NUEVO: Inicializar estado si es nuevo usuario O si está en paso "finalizado"
+        #  Inicializar estado si es nuevo usuario O si está en paso "finalizado"
         with user_states_lock:
             if numero_limpio not in user_states:
                 print(f"🆕 Nuevo usuario detectado: {numero_limpio}")
@@ -1199,7 +1199,7 @@ def webhook():
                 # Actualizar la peluquería por si cambió
                 user_states[numero_limpio]["peluqueria"] = peluqueria_key
         
-        # ✅ NUEVO: Comandos globales para volver al menú (más flexibles)
+        # Comandos globales para volver al menú (más flexibles)
         comandos_menu = ["menu", "menú", "inicio", "hola", "hi", "hey", "buenas", "buenos dias", "buenas tardes", "buen dia", "hola, quiero probar el bot", "quiero probar el bot", "probar el bot"]
         
         if texto in comandos_menu:
@@ -1215,7 +1215,7 @@ def webhook():
         
         print(f"📍 Estado actual del usuario: {estado}")
         
-        # ✅ NUEVO: Si el usuario está en "menu" y escribe CUALQUIER COSA, mostrar menú
+        #  Si el usuario está en "menu" y escribe CUALQUIER COSA, mostrar menú
         if estado == "menu":
             # Verificar si es una opción válida del menú (1-7, 0)
             if texto in ["1", "2", "3", "4", "5", "6", "7", "0"]:
@@ -1313,7 +1313,7 @@ def procesar_mensaje(numero_limpio, texto, estado, peluqueria_key, numero):
         elif texto == "0":  # Salir
             procesar_salir(config, numero_limpio, numero)
         else:
-            # ✅ NUEVO: Mensaje más amigable para opciones no válidas
+            #  Mensaje más amigable para opciones no válidas
             enviar_mensaje(
                 f"❓ No entendí '{texto}'\n\n" + 
                 obtener_menu_principal(peluqueria_key),
@@ -1346,7 +1346,7 @@ def procesar_mensaje(numero_limpio, texto, estado, peluqueria_key, numero):
         procesar_seleccion_turno_reagendar(numero_limpio, texto, numero)
     
     else:
-        # ✅ NUEVO: Si el estado es desconocido, resetear a menú
+        #  Si el estado es desconocido, resetear a menú
         print(f"⚠️ Estado desconocido: {estado} - Reseteando a menú")
         with user_states_lock:
             user_states[numero_limpio]["paso"] = "menu"
@@ -2244,7 +2244,7 @@ def procesar_ubicacion(config, numero):
 Dirección: Calle Ejemplo 123, Buenos Aires
 
 🕒 *Horarios:*
-Lunes a Viernes: 08:00 - 20:00
+Lunes a Viernes: 08:00 - 21:00
 Sábados: 08:00 - 19:00
 Domingos: Cerrado
 
