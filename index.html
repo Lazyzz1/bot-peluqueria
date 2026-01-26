@@ -217,7 +217,7 @@
             max-width: 1200px;
             margin: 0 auto;
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            grid-template-columns: repeat(2, 1fr);
             gap: 2rem;
         }
 
@@ -297,7 +297,7 @@
             max-width: 1200px;
             margin: 0 auto;
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            grid-template-columns: repeat(2, 1fr);
             gap: 2rem;
         }
 
@@ -351,7 +351,7 @@
             max-width: 1200px;
             margin: 0 auto;
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            grid-template-columns: repeat(2, 1fr);
             gap: 3rem;
         }
 
@@ -400,7 +400,7 @@
         }
 
         .pricing-card::before {
-            content: '⭐ OFERTA DE LANZAMIENTO';
+            content: "";
             position: absolute;
             top: 20px;
             right: -80px;
@@ -474,7 +474,7 @@
             max-width: 1200px;
             margin: 0 auto;
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            grid-template-columns: repeat(2, 1fr);
             gap: 2rem;
         }
 
@@ -630,7 +630,8 @@
         }
 
         .whatsapp-float:hover {
-            transform: scale(1.1);
+            border: 3px solid #2563eb;
+            background: linear-gradient(180deg, #ffffff, #f5f9ff);
             box-shadow: 0 8px 30px rgba(37, 211, 102, 0.6);
         }
 
@@ -681,7 +682,230 @@
                 font-size: 2rem;
             }
         }
+
+/* ---------------- PAGOS ---------------- */ 
+    .pagos-container {
+        display: flex;
+        gap: 30px;
+        justify-content: center;
+        align-items: stretch;
+        margin: 0 auto;
+        max-width: 1200px;
+        flex-wrap: wrap;
+        padding: 0 2rem;
+    }
+
+    .pagos-box {
+    display: flex;
+    flex-direction: column;
+    transition: 
+        transform 0.25s ease,
+        box-shadow 0.25s ease;
+    }
+
+    /* Hover suave */
+    .pagos-box:hover {
+        transform: translateY(-6px);
+        box-shadow: 0 30px 80px rgba(0, 0, 0, 0.15);
+    }
+
+    .pagos-box.argentina {
+        border: 2px solid #34B7F1;
+    }
+
+    .pagos-box.internacional {
+        border: 3px solid var(--primary);
+    }
+
+    .pricing-cards {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 3rem;
+        padding: 0 2rem;
+    }
+
+    .pricing-card.featured {
+        border: 3px solid #3498db;
+        box-shadow: 0 25px 70px rgba(52,152,219,0.25);
+    }
+
+    .badge {
+        position: absolute;
+        top: -15px;
+        right: 20px;
+        background: #ff4444;
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-weight: bold;
+        font-size: 0.9rem;
+        box-shadow: 0 5px 15px rgba(255, 68, 68, 0.4);
+    }
+
+    .currency-toggle {
+        display: flex;
+        justify-content: center;
+        gap: 1rem;
+        margin-bottom: 3rem;
+        background: var(--white);
+        padding: 0.5rem;
+        border-radius: 50px;
+        max-width: 300px;
+        margin-left: auto;
+        margin-right: auto;
+        box-shadow: var(--shadow);
+    }
+
+    .currency-btn {
+        padding: 0.8rem 2rem;
+        border: none;
+        background: transparent;
+        border-radius: 25px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: all 0.3s;
+        color: var(--dark);
+    }
+
+    .currency-btn.active {
+        background: var(--gradient);
+        color: var(--white);
+        box-shadow: 0 5px 15px rgba(37, 211, 102, 0.3);
+    }
+
+    .currency-btn:hover:not(.active) {
+        background: var(--light);
+    }
+
+    .payment-methods {
+        display: flex;
+        justify-content: center;
+        gap: 0.8rem;
+        margin-top: 1.5rem;
+        flex-wrap: wrap;
+    }
+
+    .payment-badge {
+        background: var(--light);
+        padding: 0.4rem 0.8rem;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+        color: #666;
+    }
+
+    .payment-badge i {
+        font-size: 1.2rem;
+    }
+
+    @media (max-width: 768px) {
+        .pricing-cards {
+            grid-template-columns: 1fr;
+            gap: 2rem;
+        }
+    }        
+    @media (min-width: 1000px) {
+        .pricing-card.featured {
+            border: 3px solid #2563eb;
+            background: linear-gradient(180deg, #ffffff, #f5f9ff);
+        }
+    }
+
+
+
+
     </style>
+  
+<script src="https://js.stripe.com/v3/"></script>
+
+<script>
+    // Lemonsqueezy configuration
+    const LEMONSQUEEZY_VARIANT_ID = 'TU_VARIANT_ID_AQUI'; // Lo obtienes después de crear el producto
+    
+    // Cambiar moneda visual
+    function changeCurrency(currency) {
+        const buttons = document.querySelectorAll('.currency-btn');
+        buttons.forEach(btn => btn.classList.remove('active'));
+        event.target.classList.add('active');
+        
+        console.log('Moneda seleccionada:', currency);
+    }
+
+    // 🍋 Checkout con Lemonsqueezy
+    document.querySelectorAll('.lemon-checkout').forEach(button => {
+        button.addEventListener('click', async () => {
+            // Datos del setup
+            const variantId = button.dataset.variant;
+
+            // Mostrar loading
+            button.disabled = true;
+            const originalText = button.innerHTML;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
+
+            try {
+                const response = await fetch('/create-lemon-checkout', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        variantId: variantId,
+                        email: '',  // Opcional
+                        phone: ''   // Opcional
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                // Redirigir al checkout de Lemonsqueezy
+                if (data.url) {
+                    window.location.href = data.url;
+                } else {
+                    throw new Error('No se recibió URL de checkout');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Hubo un error procesando el pago. Por favor contacta por WhatsApp.');
+                
+                // Restaurar botón
+                button.disabled = false;
+                button.innerHTML = originalText;
+            }
+        });
+    });
+
+    // 🍋 OPCIÓN 2: Usar Lemonsqueezy.js (más simple)
+    // Si preferís usar el SDK oficial de Lemonsqueezy:
+    
+    function abrirCheckoutLemon(variantId) {
+        // Lemonsqueezy abrirá un overlay
+        window.createLemonSqueezy();
+        window.LemonSqueezy.Setup({
+            eventHandler: (event) => {
+                if (event === 'Checkout.Success') {
+                    window.location.href = '/success-lemon';
+                }
+            }
+        });
+        
+        window.LemonSqueezy.Url.Open(
+            `https://tu-tienda.lemonsqueezy.com/checkout/buy/${variantId}`
+        );
+    }
+</script>
+
+<!-- AGREGAR ANTES DE </head> -->
+<script src="https://assets.lemonsqueezy.com/lemon.js" defer></script>
+
+
 </head>
 <body>
     <!-- Header -->
@@ -846,16 +1070,30 @@
     </section>
 
     <!-- Pricing Section -->
-    <section id="pricing" class="pricing">
-        <div class="section-title">
-            <h2>💰 Inversión</h2>
-            <p>Precio transparente, sin sorpresas</p>
-        </div>
-        <div class="pricing-card">
-            <h3>Plan Completo</h3>
+<section id="pricing" class="pricing">
+    <div class="section-title">
+        <h2>💰 Inversión</h2>
+        <p>Precio transparente, sin sorpresas - Elige tu moneda</p>
+    </div>
+
+    <!-- Currency Toggle -->
+    <div class="currency-toggle">
+        <button class="currency-btn active" onclick="changeCurrency('ARS')">
+            🇦🇷 ARS
+        </button>
+        <button class="currency-btn" onclick="changeCurrency('USD')">
+            🌎 USD
+        </button>
+    </div>
+
+    <!-- Contenedor de pagos lado a lado -->
+    <div class="pagos-container">
+        <!-- Plan Argentina (ARS) -->
+        <div class="pricing-card pagos-box argentina ars-plan">
+            <h3>🇦🇷 Plan Argentina</h3>
             <div class="price-setup">
                 $200.000
-                <span>Setup único</span>
+                <span style="display: block; font-size: 1rem; color: #666;">Setup único</span>
             </div>
             <div class="price-monthly">
                 + $65.000/mes
@@ -871,20 +1109,82 @@
                     <li><i class="fas fa-check-circle"></i> Soporte técnico por WhatsApp</li>
                     <li><i class="fas fa-check-circle"></i> Actualizaciones incluidas</li>
                     <li><i class="fas fa-check-circle"></i> Hosting en servidor premium</li>
-                    <li><i class="fas fa-check-circle"></i> QR para que búsquen el número más rápido</li>
+                    <li><i class="fas fa-check-circle"></i> QR del número de teléfono</li>
                 </ul>
             </div>
 
-            <a href="https://wa.me/5492974924147?text=Hola,%20quiero%20contratar%20TurnosBot%20-%20Plan%20Completo" class="btn-primary" style="margin-top: 2rem;">
+            <a href="https://wa.me/5492974924147?text=Hola,%20quiero%20contratar%20TurnosBot%20-%20Plan%20Argentina" 
+               class="btn-primary" 
+               style="margin-top: 2rem; width: 100%; justify-content: center;">
                 <i class="fab fa-whatsapp"></i>
-                Contratar Ahora
+                Contratar (MercadoPago)
             </a>
 
-            <p style="margin-top: 1.5rem; color: #666; font-size: 0.9rem;">
-                💳 Aceptamos MercadoPago 
-            </p>
+            <div class="payment-methods">
+                <span class="payment-badge">
+                    <i class="fas fa-credit-card"></i> MercadoPago
+                </span>
+                <span class="payment-badge">
+                    <i class="fas fa-money-bill-wave"></i> Transferencia
+                </span>
+            </div>
         </div>
-    </section>
+
+        <!-- Plan Internacional (USD) - FEATURED -->
+        <div class="pricing-card pagos-box internacional usd-plan featured">
+            <span class="badge">⭐ INTERNACIONAL</span>
+            <h3>🌎 Plan Global</h3>
+            <div class="price-setup">
+                USD $99
+                <span style="display: block; font-size: 1rem; color: #666;">Setup único</span>
+            </div>
+            <div class="price-monthly">
+                + USD $49/mes
+            </div>
+            
+            <div class="includes">
+                <h4>✅ Incluye:</h4>
+                <ul>
+                    <li><i class="fas fa-check-circle"></i> Todo del Plan Argentina</li>
+                    <li><i class="fas fa-check-circle"></i> Soporte multilenguaje (ES/EN)</li>
+                    <li><i class="fas fa-check-circle"></i> Timezone personalizado</li>
+                    <li><i class="fas fa-check-circle"></i> Moneda local configurada</li>
+                    <li><i class="fas fa-check-circle"></i> Pago internacional con tarjeta</li>
+                    <li><i class="fas fa-check-circle"></i> Base de datos MongoDB incluida</li>
+                    <li><i class="fas fa-check-circle"></i> SSL y seguridad avanzada</li>
+                    <li><i class="fas fa-check-circle"></i> Hosting global premium</li>
+                </ul>
+            </div>
+
+            <button class="btn-primary lemon-checkout" 
+                    style="margin-top: 2rem; width: 100%; justify-content: center;" 
+                    data-variant="TU_VARIANT_ID_AQUI">
+                <i class="fas fa-credit-card"></i>
+                Pagar con Tarjeta Internacional
+            </button>
+
+            <div class="payment-methods">
+                <span class="payment-badge">
+                    <i class="fab fa-cc-visa"></i> Visa
+                </span>
+                <span class="payment-badge">
+                    <i class="fab fa-cc-mastercard"></i> Mastercard
+                </span>
+                <span class="payment-badge">
+                    <i class="fab fa-cc-amex"></i> Amex
+                </span>
+                <span class="payment-badge">
+                    <i class="fab fa-paypal"></i> PayPal
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <p style="margin-top: 3rem; text-align: center; color: #666; font-size: 0.9rem;">
+        💳 Pagos 100% seguros • Sin cargos ocultos • Cancela cuando quieras
+    </p>
+</section>
+
 
     <!-- Testimonials -->
     <section class="testimonials">
@@ -1013,7 +1313,7 @@
                 <a href="https://wa.me/5492974924147" target="_blank"><i class="fab fa-whatsapp"></i></a>
                 
             </div>
-            <p style="opacity: 0.7; font-size: 0.9rem;">© 2025 Lazyzz. Todos los derechos reservados.</p>
+            <p style="opacity: 0.7; font-size: 0.9rem;">© 2026 Lazyzz. Todos los derechos reservados.</p>
         </div>
     </footer>
 
@@ -1081,4 +1381,4 @@
         });
     </script>
 </body>
-</html
+</html>
