@@ -1,23 +1,81 @@
-# Entornos
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# =========================
+# Entornos virtuales
+# =========================
 .venv/
 venv/
 env/
 
-# Python
-__pycache__/
-*.pyc
-
-# Variables
+# =========================
+# Variables de entorno
+# =========================
 .env
+.env.*
 
-# Binarios
+# =========================
+# Tokens y credenciales
+# =========================
+config/tokens/
+*.pem
+*.key
+*.json.key
+
+# PERMITIR solo clientes.json
+!config/clientes.json
+
+# =========================
+# Logs
+# =========================
+*.log
+
+# =========================
+# Binarios / instaladores
+# =========================
 *.exe
 *.msi
 *.zip
+*.tar
+*.gz
 
-# Bases locales
-*.db
+# =========================
+# Archivos del sistema
+# =========================
+.DS_Store
+Thumbs.db
 
-# IDE
+# =========================
+# IDEs / Editores
+# =========================
 .vscode/
 .idea/
+
+# =========================
+# Tests temporales / coverage
+# =========================
+.coverage
+htmlcov/
+.pytest_cache/
+
+# =========================
+# Ngrok / túneles
+# =========================
+ngrok*
+*.ngrok
+
+# =========================
+# QR / archivos generados
+# =========================
+qr_*.png
+qr_*.jpg
+
+# =========================
+# Node / Frontend (si agrego JS)
+# =========================
+node_modules/
