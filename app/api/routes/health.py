@@ -1,90 +1,174 @@
 """
-Health check endpoint
+Health Check Endpoint
+Verifica el estado de la aplicación y sus servicios
 """
+
 from flask import Blueprint, jsonify
-from app.services.whatsapp_service import whatsapp_service
-from app.core.config import PELUQUERIAS
+import os
 
 health_bp = Blueprint('health', __name__)
 
 
-@health_bp.route("/health", methods=["GET"])
-def health():
+@health_bp.route('/health', methods=['GET'])
+def health_check():
     """
     Endpoint de health check
-    
-    Verifica:
-    - Conexión a Twilio
-    - Configuración de peluquerías
-    - Google Calendar (si aplica)
+    Verifica que la aplicación esté funcionando correctamente
     
     Returns:
-        JSON con estado del sistema
+        JSON con estado de la aplicación y sus componentes
     """
-    resultado = {
+    try:
+        # Verificar componentes básicos
+        checks = {
+            "app": check_app(),
+            "config": check_config(),
+            "handlers": check_handlers(),
+            "services": check_services()
+        }
+        
+        # Determinar estado general
+        all_ok = all(check["status"] == "ok" for check in checks.values())
+        status = "healthy" if all_ok else "degraded"
+        status_code = 200 if all_ok else 503
+        
+        return jsonify({
+            "status": status,
+            "checks": checks,
+            "version": "1.0.0",
+            "environment": os.getenv("FLASK_ENV", "production")
+        }), status_code
+    
+    except Exception as e:
+        return jsonify({
+            "status": "unhealthy",
+            "error": str(e)
+        }), 500
+
+
+def check_app():
+    """Verifica que la aplicación Flask esté corriendo"""
+    return {
         "status": "ok",
-        "checks": {}
+        "message": "Flask app running"
     }
+
+
+def check_config():
+    """Verifica que las variables de entorno críticas estén configuradas"""
+    required_vars = [
+        "TWILIO_ACCOUNT_SID",
+        "TWILIO_AUTH_TOKEN",
+        "TWILIO_WHATSAPP_NUMBER"
+    ]
     
-    # Check 1: Twilio
-    try:
-        # Verificar que el cliente esté inicializado
-        if whatsapp_service.client:
-            resultado["checks"]["twilio"] = "ok"
-        else:
-            resultado["checks"]["twilio"] = "error"
-            resultado["status"] = "degraded"
-    except Exception as e:
-        resultado["checks"]["twilio"] = f"error: {str(e)}"
-        resultado["status"] = "degraded"
+    missing = [var for var in required_vars if not os.getenv(var)]
     
-    # Check 2: Peluquerías configuradas
-    try:
-        if PELUQUERIAS and len(PELUQUERIAS) > 0:
-            resultado["checks"]["clientes"] = f"ok ({len(PELUQUERIAS)} clientes)"
-        else:
-            resultado["checks"]["clientes"] = "error: sin clientes"
-            resultado["status"] = "error"
-    except Exception as e:
-        resultado["checks"]["clientes"] = f"error: {str(e)}"
-        resultado["status"] = "error"
+    if missing:
+        return {
+            "status": "error",
+            "message": f"Missing environment variables: {', '.join(missing)}"
+        }
     
-    # Check 3: Google Calendar (opcional)
+    return {
+        "status": "ok",
+        "message": "All required environment variables present"
+    }
+
+
+def check_handlers():
+    """Verifica que los handlers estén inicializados"""
     try:
-        from app.services.calendar_service import calendar_service
+        from app.bot.orchestrator import bot_orchestrator
         
-        # Intentar obtener servicio de la primera peluquería
-        primera_peluqueria = list(PELUQUERIAS.keys())[0]
-        service = calendar_service.get_service(primera_peluqueria)
+        handlers = {
+            "menu": bot_orchestrator.menu_handler is not None,
+            "booking": bot_orchestrator.booking_handler is not None,
+            "cancellation": bot_orchestrator.cancellation_handler is not None,
+            "info": bot_orchestrator.info_handler is not None
+        }
         
-        if service:
-            resultado["checks"]["google_calendar"] = "ok"
-        else:
-            resultado["checks"]["google_calendar"] = "no configurado"
+        all_initialized = all(handlers.values())
+        
+        if not all_initialized:
+            missing = [h for h, v in handlers.items() if not v]
+            return {
+                "status": "error",
+                "message": f"Handlers not initialized: {', '.join(missing)}"
+            }
+        
+        return {
+            "status": "ok",
+            "message": "All handlers initialized",
+            "handlers": handlers
+        }
+    
     except ImportError:
-        resultado["checks"]["google_calendar"] = "módulo no disponible"
-    except Exception as e:
-        resultado["checks"]["google_calendar"] = f"error: {str(e)}"
-        resultado["status"] = "degraded"
+        return {
+            "status": "error",
+            "message": "Bot orchestrator not available"
+        }
+
+
+def check_services():
+    """Verifica que los servicios estén disponibles"""
+    services_status = {}
     
-    # Check 4: MongoDB (opcional)
+    # WhatsApp Service
     try:
-        from app.core.database import test_connection
-        
-        if test_connection():
-            resultado["checks"]["mongodb"] = "ok"
-        else:
-            resultado["checks"]["mongodb"] = "desconectado"
+        from app.services.whatsapp_service import whatsapp_service
+        services_status["whatsapp"] = "ok" if whatsapp_service else "error"
     except ImportError:
-        resultado["checks"]["mongodb"] = "no configurado"
-    except Exception as e:
-        resultado["checks"]["mongodb"] = f"error: {str(e)}"
+        services_status["whatsapp"] = "not_available"
     
-    # Determinar código de respuesta
-    status_code = 200
-    if resultado["status"] == "degraded":
-        status_code = 207  # Multi-Status
-    elif resultado["status"] == "error":
-        status_code = 503  # Service Unavailable
+    # Calendar Service
+    try:
+        from app.services.calendar_service import CalendarService
+        services_status["calendar"] = "ok"
+    except ImportError:
+        services_status["calendar"] = "not_available"
     
-    return jsonify(resultado), status_code
+    # Notification Service
+    try:
+        from app.services.notification_service import notification_service
+        services_status["notifications"] = "ok" if notification_service else "error"
+    except ImportError:
+        services_status["notifications"] = "not_available"
+    
+    # Redis (Estado)
+    try:
+        from app.bot.states.state_manager import redis_client
+        redis_client.ping()
+        services_status["redis"] = "ok"
+    except Exception:
+        services_status["redis"] = "error"
+    
+    # MongoDB (opcional)
+    try:
+        from app.core.database import MONGODB_DISPONIBLE
+        services_status["mongodb"] = "ok" if MONGODB_DISPONIBLE else "not_configured"
+    except ImportError:
+        services_status["mongodb"] = "not_available"
+    
+    # Verificar si hay servicios críticos con error
+    critical_services = ["whatsapp", "calendar", "redis"]
+    critical_errors = [s for s in critical_services if services_status.get(s) == "error"]
+    
+    if critical_errors:
+        return {
+            "status": "error",
+            "message": f"Critical services with errors: {', '.join(critical_errors)}",
+            "services": services_status
+        }
+    
+    return {
+        "status": "ok",
+        "message": "All critical services available",
+        "services": services_status
+    }
+
+
+@health_bp.route('/ping', methods=['GET'])
+def ping():
+    """Simple ping endpoint"""
+    return jsonify({"status": "pong"}), 200

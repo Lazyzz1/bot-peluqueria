@@ -1,264 +1,145 @@
 """
-Manejador del menú principal del bot
+Manejador del Menú Principal
+Gestiona el menú principal y las opciones del bot
 """
+
 from app.services.whatsapp_service import whatsapp_service
-from app.bot.states.state_manager import get_state, set_state
+from app.utils.translations import t
 
 
 class MenuHandler:
-    """Maneja las opciones del menú principal"""
+    """Manejador del menú principal del bot"""
     
-    def __init__(self, peluquerias):
+    def __init__(self, peluquerias_config):
         """
-        Args:
-            peluquerias (dict): Configuración de peluquerías
-        """
-        self.peluquerias = peluquerias
-    
-    def mostrar_menu(self, numero, peluqueria_key):
-        """
-        Muestra el menú principal
+        Inicializa el manejador del menú
         
         Args:
-            numero (str): Número de WhatsApp
-            peluqueria_key (str): ID de la peluquería
+            peluquerias_config: Diccionario con configuración de clientes
+        """
+        self.peluquerias = peluquerias_config
+    
+    def mostrar_menu_principal(self, peluqueria_key, numero, idioma="es"):
+        """
+        Muestra el menú principal al usuario
+        
+        Args:
+            peluqueria_key: Identificador del cliente
+            numero: Número de WhatsApp del usuario
+            idioma: Idioma del menú (default: español)
         """
         config = self.peluquerias.get(peluqueria_key, {})
         nombre = config.get("nombre", "Peluquería")
         
-        whatsapp_service.enviar_menu_principal(numero, nombre)
+        # Detectar idioma del cliente si está configurado
+        idioma_config = config.get("idioma", idioma)
+        
+        # Generar menú
+        mensaje = self._generar_menu(nombre, idioma_config)
+        
+        whatsapp_service.enviar_mensaje(mensaje, numero)
     
-    def procesar_opcion(self, numero, opcion, peluqueria_key):
+    def _generar_menu(self, nombre_peluqueria, idioma="es"):
         """
-        Procesa la opción seleccionada del menú
+        Genera el texto del menú principal
         
         Args:
-            numero (str): Número de WhatsApp
-            opcion (str): Opción seleccionada
-            peluqueria_key (str): ID de la peluquería
-            
+            nombre_peluqueria: Nombre de la peluquería
+            idioma: Idioma del menú
+        
         Returns:
-            str: Próximo paso del flujo
+            str: Mensaje del menú formateado
         """
-        numero_limpio = numero.replace("whatsapp:", "")
-        config = self.peluquerias.get(peluqueria_key, {})
-        
-        # Mapeo de opciones
-        opciones = {
-            "1": self._iniciar_reserva,
-            "2": self._ver_turnos,
-            "3": self._cancelar_turno,
-            "4": self._reagendar_turno,
-            "5": self._ver_precios,
-            "6": self._ver_faq,
-            "7": self._ver_ubicacion,
-            "0": self._salir
-        }
-        
-        handler = opciones.get(opcion)
-        
-        if handler:
-            return handler(numero, numero_limpio, config)
+        if idioma == "en":
+            return self._generar_menu_ingles(nombre_peluqueria)
         else:
-            whatsapp_service.enviar_mensaje(
-                "❌ Opción inválida. Elegí un número del 0 al 7.",
-                numero
-            )
-            return "menu"
+            return self._generar_menu_espanol(nombre_peluqueria)
     
-    def _iniciar_reserva(self, numero, numero_limpio, config):
-        """Opción 1: Iniciar reserva de turno"""
-        # Obtener peluqueros activos
-        peluqueros_activos = [
-            p for p in config.get("peluqueros", [])
-            if p.get("activo", True)
-        ]
-        
-        if not peluqueros_activos:
-            whatsapp_service.enviar_mensaje(
-                "😕 No hay peluqueros disponibles en este momento.\n\n"
-                "Por favor, intenta más tarde.",
-                numero
-            )
-            return "menu"
-        
-        # Guardar estado
-        estado = get_state(numero_limpio) or {}
-        estado["paso"] = "seleccionar_peluquero"
-        estado["peluqueros_disponibles"] = peluqueros_activos
-        set_state(numero_limpio, estado)
-        
-        # Mostrar lista
-        from app.bot.utils.formatters import formatear_item_lista
-        
-        lista = "\n".join(
-            formatear_item_lista(i, p["nombre"])
-            for i, p in enumerate(peluqueros_activos)
-        )
-        
-        whatsapp_service.enviar_mensaje(
-            f"✂️ *Seleccioná tu peluquero:*\n\n{lista}\n\nEscribí el número:",
-            numero
-        )
-        
-        return "seleccionar_peluquero"
+    def _generar_menu_espanol(self, nombre):
+        """Genera el menú en español"""
+        return f"""👋 *¡Bienvenido a {nombre}!*
+
+¿Qué querés hacer?
+
+1️⃣ Pedir turno
+2️⃣ Ver mis turnos
+3️⃣ Cancelar turno
+4️⃣ Ver servicios
+5️⃣ Reagendar turno
+6️⃣ Preguntas frecuentes
+7️⃣ Ubicación y contacto
+0️⃣ Salir
+
+Escribí el número de la opción que querés"""
     
-    def _ver_turnos(self, numero, numero_limpio, config):
-        """Opción 2: Ver turnos del cliente"""
-        from app.core.database import obtener_turnos_por_telefono
-        
-        turnos = obtener_turnos_por_telefono(numero_limpio)
-        
-        if not turnos:
-            whatsapp_service.enviar_mensaje(
-                "📅 No tenés turnos reservados.\n\n"
-                "Escribí *1* para reservar uno.",
-                numero
-            )
-            return "menu"
-        
-        # Formatear turnos
-        mensaje = "📅 *Tus turnos:*\n\n"
-        
-        for i, turno in enumerate(turnos, 1):
-            mensaje += f"{i}. {turno['fecha']} - {turno['hora']}\n"
-            mensaje += f"   ✂️ Con {turno['peluquero']}\n\n"
-        
-        mensaje += "Escribí *menu* para volver"
-        
-        whatsapp_service.enviar_mensaje(mensaje, numero)
-        return "menu"
+    def _generar_menu_ingles(self, nombre):
+        """Genera el menú en inglés"""
+        return f"""👋 *Welcome to {nombre}!*
+
+What would you like to do?
+
+1️⃣ Book appointment
+2️⃣ View my appointments
+3️⃣ Cancel appointment
+4️⃣ View services
+5️⃣ Reschedule appointment
+6️⃣ FAQ
+7️⃣ Location & contact
+0️⃣ Exit
+
+Type the number of the option you want"""
     
-    def _cancelar_turno(self, numero, numero_limpio, config):
-        """Opción 3: Cancelar turno"""
-        from app.core.database import obtener_turnos_por_telefono
+    def mostrar_mensaje_bienvenida(self, peluqueria_key, numero, idioma="es"):
+        """
+        Muestra un mensaje de bienvenida personalizado
         
-        turnos = obtener_turnos_por_telefono(numero_limpio)
-        
-        if not turnos:
-            whatsapp_service.enviar_mensaje(
-                "📅 No tenés turnos para cancelar.\n\n"
-                "Escribí *menu* para volver.",
-                numero
-            )
-            return "menu"
-        
-        # Guardar turnos en estado
-        estado = get_state(numero_limpio) or {}
-        estado["paso"] = "confirmar_cancelacion"
-        estado["turnos"] = turnos
-        set_state(numero_limpio, estado)
-        
-        # Mostrar lista
-        from app.bot.utils.formatters import formatear_item_lista
-        
-        mensaje = "❌ *Cancelar turno:*\n\n"
-        for i, turno in enumerate(turnos):
-            mensaje += formatear_item_lista(
-                i,
-                f"{turno['fecha']} - {turno['hora']} con {turno['peluquero']}"
-            ) + "\n"
-        
-        mensaje += "\nEscribí el número del turno a cancelar:"
-        
-        whatsapp_service.enviar_mensaje(mensaje, numero)
-        return "confirmar_cancelacion"
-    
-    def _reagendar_turno(self, numero, numero_limpio, config):
-        """Opción 4: Reagendar turno"""
-        whatsapp_service.enviar_mensaje(
-            "ℹ️ Para reagendar:\n\n"
-            "1️⃣ Primero cancelá tu turno actual (opción 3)\n"
-            "2️⃣ Luego pedí uno nuevo (opción 1)\n\n"
-            "Escribí *menu* para volver",
-            numero
-        )
-        return "menu"
-    
-    def _ver_precios(self, numero, numero_limpio, config):
-        """Opción 5: Ver precios"""
-        from app.bot.utils.formatters import formatear_precio
-        
-        servicios = config.get("servicios", [])
-        
-        if not servicios:
-            whatsapp_service.enviar_mensaje(
-                "💰 Contactanos para consultar precios.\n\n"
-                "Escribí *menu* para volver.",
-                numero
-            )
-            return "menu"
-        
-        mensaje = "💰 *Nuestros servicios:*\n\n"
-        
-        for servicio in servicios:
-            nombre = servicio.get("nombre", "Servicio")
-            precio = servicio.get("precio", 0)
-            mensaje += f"• {nombre}: {formatear_precio(precio)}\n"
-        
-        mensaje += "\nEscribí *menu* para volver"
-        
-        whatsapp_service.enviar_mensaje(mensaje, numero)
-        return "menu"
-    
-    def _ver_faq(self, numero, numero_limpio, config):
-        """Opción 6: Preguntas frecuentes"""
-        mensaje = """📖 *Preguntas Frecuentes:*
-
-*¿Puedo cambiar la hora?*
-Cancelá el turno actual y reservá uno nuevo
-
-*¿Con cuánto tiempo de anticipación debo reservar?*
-Podés reservar hasta con 7 días de anticipación
-
-*¿Qué pasa si llego tarde?*
-Intentá llegar 5 min antes. Si llegás más de 15 min tarde, tu turno podría ser reasignado
-
-*¿Formas de pago?*
-Efectivo, débito y crédito
-
-Escribí *menu* para volver"""
-        
-        whatsapp_service.enviar_mensaje(mensaje, numero)
-        return "menu"
-    
-    def _ver_ubicacion(self, numero, numero_limpio, config):
-        """Opción 7: Ubicación y contacto"""
-        nombre = config.get("nombre", "Peluquería")
-        direccion = config.get("direccion", "Calle Ejemplo 123")
-        telefono = config.get("telefono", "+54 9 11 1234-5678")
-        
-        mensaje = f"""📍 *Ubicación de {nombre}:*
-
-Dirección: {direccion}
-
-🕐 *Horarios:*
-Lunes a Viernes: 08:00 - 21:00
-Sábados: 08:00 - 19:00
-Domingos: Cerrado
-
-📞 *Contacto:*
-Teléfono: {telefono}
-
-Escribí *menu* para volver"""
-        
-        whatsapp_service.enviar_mensaje(mensaje, numero)
-        return "menu"
-    
-    def _salir(self, numero, numero_limpio, config):
-        """Opción 0: Salir del menú"""
+        Args:
+            peluqueria_key: Identificador del cliente
+            numero: Número de WhatsApp
+            idioma: Idioma del mensaje
+        """
+        config = self.peluquerias.get(peluqueria_key, {})
         nombre = config.get("nombre", "Peluquería")
         
-        whatsapp_service.enviar_mensaje(
-            "👋 ¡Gracias por contactarnos!\n\n"
-            "Cuando quieras volver, escribí *hola* o *menu*\n\n"
-            f"*{nombre}* 💈",
-            numero
-        )
+        # Mensaje personalizado si existe en config
+        mensaje_custom = config.get("mensaje_bienvenida")
         
-        # Actualizar estado
-        estado = get_state(numero_limpio) or {}
-        estado["paso"] = "finalizado"
-        set_state(numero_limpio, estado)
+        if mensaje_custom:
+            whatsapp_service.enviar_mensaje(mensaje_custom, numero)
+        else:
+            if idioma == "en":
+                mensaje = f"👋 Hello! Welcome to {nombre}'s booking system"
+            else:
+                mensaje = f"👋 ¡Hola! Bienvenido al sistema de turnos de {nombre}"
+            
+            whatsapp_service.enviar_mensaje(mensaje, numero)
         
-        return "finalizado"
+        # Mostrar menú
+        self.mostrar_menu_principal(peluqueria_key, numero, idioma)
+    
+    def mostrar_opcion_invalida(self, numero, texto="", idioma="es"):
+        """
+        Muestra mensaje cuando el usuario envía una opción inválida
+        
+        Args:
+            numero: Número de WhatsApp
+            texto: Texto enviado por el usuario
+            idioma: Idioma del mensaje
+        """
+        if idioma == "en":
+            mensaje = f"❓ I didn't understand '{texto}'\n\nPlease choose a number from the menu:"
+        else:
+            mensaje = f"❓ No entendí '{texto}'\n\nPor favor elegí un número del menú:"
+        
+        whatsapp_service.enviar_mensaje(mensaje, numero)
+
+
+# Instancia global (se inicializa desde el orquestador)
+menu_handler = None
+
+
+def inicializar_menu_handler(peluquerias_config):
+    """Inicializa el manejador de menú globalmente"""
+    global menu_handler
+    menu_handler = MenuHandler(peluquerias_config)
+    return menu_handler

@@ -1,447 +1,430 @@
 """
-Servicio de Notificaciones y Recordatorios
-Gestiona recordatorios automáticos y notificaciones
+Servicio de Pagos
+Integración con LemonSqueezy (internacional) y MercadoPago (Argentina)
 """
 
-import threading
-import time
-from datetime import datetime, timedelta
-import json
 import os
-from threading import Lock
-from app.services.whatsapp_service import whatsapp_service
-from app.services.calendar_service import CalendarService
-from app.bot.utils.formatters import formatear_fecha_espanol
-from app.utils.time_utils import ahora_local
-from app.bot.states.state_manager import get_state
-
-try:
-    from app.core.database import (
-        obtener_turnos_proximos_db,
-        marcar_recordatorio_enviado,
-        recordatorio_ya_enviado
-    )
-    MONGODB_DISPONIBLE = True
-except ImportError:
-    MONGODB_DISPONIBLE = False
-    def obtener_turnos_proximos_db(*args, **kwargs): return []
-    def marcar_recordatorio_enviado(*args, **kwargs): return False
-    def recordatorio_ya_enviado(*args, **kwargs): return False
+import requests
+import hmac
+import hashlib
+from datetime import datetime, timedelta
 
 
-class NotificationService:
-    """Servicio para gestionar notificaciones y recordatorios"""
+class PaymentService:
+    """Servicio para gestionar pagos con múltiples proveedores"""
     
-    def __init__(self, peluquerias_config, templates_config=None):
+    def __init__(self):
+        """Inicializa el servicio de pagos"""
+        # LemonSqueezy (internacional)
+        self.lemonsqueezy_api_key = os.getenv("LEMONSQUEEZY_API_KEY")
+        self.lemonsqueezy_store_id = os.getenv("LEMONSQUEEZY_STORE_ID")
+        self.lemonsqueezy_webhook_secret = os.getenv("LEMONSQUEEZY_WEBHOOK_SECRET")
+        
+        # MercadoPago (Argentina)
+        self.mercadopago_access_token = os.getenv("MERCADOPAGO_ACCESS_TOKEN")
+        self.mercadopago_public_key = os.getenv("MERCADOPAGO_PUBLIC_KEY")
+        self.mercadopago_webhook_secret = os.getenv("MERCADOPAGO_WEBHOOK_SECRET")
+        
+        # URLs
+        self.app_url = os.getenv("APP_URL", "http://localhost:3000")
+        
+        print("💳 PaymentService inicializado")
+        if self.lemonsqueezy_api_key:
+            print("   ✅ LemonSqueezy configurado")
+        if self.mercadopago_access_token:
+            print("   ✅ MercadoPago configurado")
+    
+    # ==================== LEMONSQUEEZY (INTERNACIONAL) ====================
+    
+    def crear_checkout_lemonsqueezy(self, turno_data):
         """
-        Inicializa el servicio de notificaciones
+        Crea un checkout de LemonSqueezy para pago internacional
         
         Args:
-            peluquerias_config: Diccionario con configuración de clientes
-            templates_config: Configuración de plantillas de Twilio
-        """
-        self.peluquerias = peluquerias_config
-        self.calendar_service = CalendarService(peluquerias_config)
-        self.templates = templates_config or {}
-        
-        # Cache de recordatorios enviados (thread-safe)
-        self.recordatorios_enviados = set()
-        self.recordatorios_lock = Lock()
-        
-        # Archivo para persistencia
-        self.archivo_recordatorios = "recordatorios_enviados.json"
-        
-        # Cargar recordatorios previos
-        self._cargar_recordatorios_enviados()
-    
-    def _cargar_recordatorios_enviados(self):
-        """Carga los recordatorios enviados desde archivo JSON"""
-        if os.path.exists(self.archivo_recordatorios):
-            try:
-                with open(self.archivo_recordatorios, "r", encoding="utf-8") as f:
-                    datos = json.load(f)
-                    with self.recordatorios_lock:
-                        self.recordatorios_enviados = set(datos)
-                print(f"📂 Cargados {len(self.recordatorios_enviados)} recordatorios previos")
-            except json.JSONDecodeError:
-                print("⚠️ Archivo corrupto, creando backup...")
-                os.rename(self.archivo_recordatorios, f"{self.archivo_recordatorios}.backup")
-            except Exception as e:
-                print(f"⚠️ Error cargando recordatorios: {e}")
-    
-    def _guardar_recordatorios_enviados(self):
-        """Guarda los recordatorios enviados en archivo JSON"""
-        try:
-            with self.recordatorios_lock:
-                with open(self.archivo_recordatorios, "w", encoding="utf-8") as f:
-                    json.dump(list(self.recordatorios_enviados), f, indent=2)
-        except Exception as e:
-            print(f"❌ Error guardando recordatorios: {e}")
-    
-    def obtener_turnos_proximos(self, peluqueria_key, horas_anticipacion=24):
-        """
-        Obtiene turnos que ocurrirán en X horas
-        
-        Args:
-            peluqueria_key: Identificador del cliente
-            horas_anticipacion: Horas de anticipación (24 o 2)
+            turno_data: {
+                "peluqueria_key": str,
+                "cliente_nombre": str,
+                "cliente_email": str,
+                "cliente_telefono": str,
+                "servicio": str,
+                "precio": int,
+                "fecha_hora": datetime,
+                "peluquero": str
+            }
         
         Returns:
-            list: Lista de turnos próximos
+            dict: {"url": str, "checkout_id": str} o None
         """
+        if not self.lemonsqueezy_api_key:
+            print("⚠️ LemonSqueezy no configurado")
+            return None
+        
         try:
-            # Intentar obtener de MongoDB primero
-            if MONGODB_DISPONIBLE:
-                turnos_db = obtener_turnos_proximos_db(peluqueria_key, horas_anticipacion)
-                if turnos_db:
-                    return turnos_db
+            url = "https://api.lemonsqueezy.com/v1/checkouts"
             
-            # Fallback a Google Calendar
-            config = self.peluquerias.get(peluqueria_key, {})
-            if not config:
-                return []
+            headers = {
+                "Accept": "application/vnd.api+json",
+                "Content-Type": "application/vnd.api+json",
+                "Authorization": f"Bearer {self.lemonsqueezy_api_key}"
+            }
             
-            timezone = config.get("timezone", "America/Argentina/Buenos_Aires")
-            calendar_id = config.get("calendar_id")
+            # Crear metadata para identificar el turno
+            metadata = {
+                "peluqueria_key": turno_data["peluqueria_key"],
+                "cliente_nombre": turno_data["cliente_nombre"],
+                "cliente_telefono": turno_data["cliente_telefono"],
+                "servicio": turno_data["servicio"],
+                "fecha_hora": turno_data["fecha_hora"].isoformat(),
+                "peluquero": turno_data.get("peluquero", ""),
+                "tipo": "reserva_turno"
+            }
             
-            if not calendar_id:
-                return []
-            
-            service = self.calendar_service.get_calendar_service(peluqueria_key)
-            
-            # Calcular ventana de tiempo
-            ahora = ahora_local(peluqueria_key, self.peluquerias)
-            tiempo_inicio = ahora + timedelta(hours=horas_anticipacion - 1)
-            tiempo_fin = ahora + timedelta(hours=horas_anticipacion + 1)
-            
-            # Obtener eventos del calendario
-            eventos = service.events().list(
-                calendarId=calendar_id,
-                timeMin=tiempo_inicio.isoformat(),
-                timeMax=tiempo_fin.isoformat(),
-                singleEvents=True,
-                orderBy='startTime'
-            ).execute()
-            
-            turnos_recordar = []
-            
-            if "items" in eventos:
-                for event in eventos["items"]:
-                    try:
-                        inicio_str = event["start"].get("dateTime")
-                        if not inicio_str:
-                            continue
-                        
-                        # Parsear fecha con timezone
-                        if inicio_str.endswith('Z'):
-                            inicio = datetime.fromisoformat(inicio_str.replace("Z", "+00:00"))
-                        else:
-                            inicio = datetime.fromisoformat(inicio_str)
-                        
-                        # Extraer teléfono de la descripción
-                        descripcion = event.get("description", "")
-                        telefono = None
-                        for linea in descripcion.split("\n"):
-                            if "Tel:" in linea or "Teléfono:" in linea:
-                                telefono = linea.split(":")[-1].strip()
-                                break
-                        
-                        if telefono:
-                            turno_info = {
-                                "telefono": telefono,
-                                "inicio": inicio,
-                                "resumen": event.get("summary", "Turno"),
-                                "id": event["id"],
-                                "peluqueria": peluqueria_key
-                            }
-                            turnos_recordar.append(turno_info)
-                    
-                    except Exception as e:
-                        print(f"❌ Error procesando evento para recordatorio: {e}")
-                        continue
-            
-            return turnos_recordar
-        
-        except Exception as e:
-            print(f"❌ Error obteniendo turnos próximos: {e}")
-            return []
-    
-    def enviar_recordatorio(self, turno, horas_anticipacion=24):
-        """
-        Envía un recordatorio de turno al cliente
-        
-        Args:
-            turno: Diccionario con información del turno
-            horas_anticipacion: 24 o 2 horas
-        
-        Returns:
-            bool: True si se envió exitosamente
-        """
-        try:
-            telefono = turno["telefono"]
-            peluqueria_key = turno.get("peluqueria")
-            
-            # Verificar si ya se envió (MongoDB)
-            if MONGODB_DISPONIBLE:
-                turno_id = turno.get("_id") or turno.get("id")
-                tipo_recordatorio = "24h" if horas_anticipacion == 24 else "2h"
-                if recordatorio_ya_enviado(turno_id, tipo_recordatorio):
-                    print(f"⏭️ Recordatorio ya enviado para {turno_id}")
-                    return False
-            
-            # Verificar si el usuario tiene recordatorios activos
-            estado_usuario = get_state(telefono)
-            if estado_usuario:
-                if not estado_usuario.get("recordatorios_activos", True):
-                    print(f"⏭️ Usuario {telefono} tiene recordatorios desactivados")
-                    return False
-            
-            # Formatear datos
-            fecha = formatear_fecha_espanol(turno["inicio"])
-            hora = turno["inicio"].strftime("%H:%M")
-            
-            # Extraer información del resumen
-            resumen = turno.get("resumen", "Turno")
-            partes = resumen.split(" - ")
-            
-            # Intentar extraer servicio y nombre
-            if len(partes) >= 2:
-                servicio = partes[-2] if len(partes) >= 3 else partes[0]
-            else:
-                servicio = "Tu servicio"
-            
-            if len(partes) >= 3:
-                nombre_cliente = partes[-1]
-            else:
-                nombre_cliente = "Cliente"
-            
-            # Calcular tiempo restante
-            ahora = ahora_local(peluqueria_key, self.peluquerias)
-            diferencia = turno["inicio"] - ahora
-            horas_faltantes = int(diferencia.total_seconds() / 3600)
-            
-            print(f"📤 Enviando recordatorio a {telefono} ({horas_faltantes}h antes)")
-            
-            # Enviar según tipo de recordatorio
-            if horas_anticipacion == 24:
-                # Usar plantilla si está configurada
-                template_sid = self.templates.get("TEMPLATE_RECORDATORIO")
-                if template_sid:
-                    resultado = whatsapp_service.enviar_con_plantilla(
-                        telefono=telefono,
-                        content_sid=template_sid,
-                        variables={
-                            "1": nombre_cliente,
-                            "2": fecha,
-                            "3": hora,
-                            "4": servicio
+            payload = {
+                "data": {
+                    "type": "checkouts",
+                    "attributes": {
+                        "checkout_data": {
+                            "email": turno_data.get("cliente_email", ""),
+                            "name": turno_data["cliente_nombre"],
+                            "custom": metadata
+                        },
+                        "product_options": {
+                            "name": f"Turno - {turno_data['servicio']}",
+                            "description": f"Reserva de turno con {turno_data.get('peluquero', 'peluquero')} el {turno_data['fecha_hora'].strftime('%d/%m/%Y %H:%M')}",
+                            "redirect_url": f"{self.app_url}/payment/success",
+                        },
+                        "checkout_options": {
+                            "button_color": "#10b981"
                         }
-                    )
-                else:
-                    # Mensaje normal
-                    mensaje = (
-                        f"⏰ *Recordatorio de turno*\n\n"
-                        f"👤 {nombre_cliente}\n"
-                        f"📅 Fecha: {fecha}\n"
-                        f"🕐 Hora: {hora}\n"
-                        f"✂️ Servicio: {servicio}\n\n"
-                        f"¡Te esperamos mañana! 👈"
-                    )
-                    resultado = whatsapp_service.enviar_mensaje(mensaje, telefono)
+                    },
+                    "relationships": {
+                        "store": {
+                            "data": {
+                                "type": "stores",
+                                "id": self.lemonsqueezy_store_id
+                            }
+                        },
+                        "variant": {
+                            "data": {
+                                "type": "variants",
+                                "id": self._get_or_create_variant_lemonsqueezy(
+                                    turno_data["servicio"],
+                                    turno_data["precio"]
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            
+            response = requests.post(url, json=payload, headers=headers)
+            
+            if response.status_code == 201:
+                data = response.json()
+                checkout_url = data["data"]["attributes"]["url"]
+                checkout_id = data["data"]["id"]
                 
-                if resultado:
-                    print("✅ Recordatorio 24h enviado")
-            
-            elif horas_anticipacion == 2:
-                mensaje = (
-                    f"⏰ *Recordatorio urgente*\n\n"
-                    f"Tu turno es en {horas_faltantes} horas:\n\n"
-                    f"🕐 Hora: {hora}\n"
-                    f"✂️ {servicio}\n\n"
-                    f"¡Nos vemos pronto! 👈"
-                )
-                resultado = whatsapp_service.enviar_mensaje(mensaje, telefono)
-                
-                if resultado:
-                    print("✅ Recordatorio 2h enviado")
-            
-            # Marcar como enviado en MongoDB
-            if resultado and MONGODB_DISPONIBLE:
-                turno_id = turno.get("_id") or turno.get("id")
-                tipo_recordatorio = "24h" if horas_anticipacion == 24 else "2h"
-                marcar_recordatorio_enviado(turno_id, tipo_recordatorio)
-                print("✅ Recordatorio marcado en MongoDB")
-            
-            return resultado
+                print(f"✅ Checkout LemonSqueezy creado: {checkout_id}")
+                return {
+                    "url": checkout_url,
+                    "checkout_id": checkout_id,
+                    "provider": "lemonsqueezy"
+                }
+            else:
+                print(f"❌ Error creando checkout LemonSqueezy: {response.text}")
+                return None
         
         except Exception as e:
-            print(f"❌ Error enviando recordatorio: {e}")
+            print(f"❌ Error en crear_checkout_lemonsqueezy: {e}")
             import traceback
             traceback.print_exc()
-            return False
+            return None
     
-    def sistema_recordatorios_loop(self):
+    def _get_or_create_variant_lemonsqueezy(self, servicio_nombre, precio):
         """
-        Loop principal del sistema de recordatorios
-        Se ejecuta en un thread separado
+        Obtiene o crea una variante de producto en LemonSqueezy
+        (simplificado - en producción deberías tener productos pre-creados)
         """
-        print("📢 Sistema de recordatorios iniciado")
-        
-        while True:
-            try:
-                # Obtener hora actual para logging
-                print(f"\n⏰ Verificando turnos próximos...")
-                
-                # Verificar TODAS las peluquerías
-                for peluqueria_key in self.peluquerias.keys():
-                    try:
-                        config = self.peluquerias[peluqueria_key]
-                        print(f"   Verificando {config['nombre']}...")
-                        
-                        # Recordatorios de 24 horas
-                        turnos_24h = self.obtener_turnos_proximos(peluqueria_key, horas_anticipacion=24)
-                        for turno in turnos_24h:
-                            recordatorio_id = f"{turno['id']}_24h"
-                            
-                            with self.recordatorios_lock:
-                                if recordatorio_id not in self.recordatorios_enviados:
-                                    if self.enviar_recordatorio(turno, horas_anticipacion=24):
-                                        self.recordatorios_enviados.add(recordatorio_id)
-                                        self._guardar_recordatorios_enviados()
-                                        print(f"   📤 Recordatorio 24h enviado para turno {turno['inicio'].strftime('%d/%m %H:%M')}")
-                        
-                        # Recordatorios de 2 horas
-                        turnos_2h = self.obtener_turnos_proximos(peluqueria_key, horas_anticipacion=2)
-                        for turno in turnos_2h:
-                            recordatorio_id = f"{turno['id']}_2h"
-                            
-                            with self.recordatorios_lock:
-                                if recordatorio_id not in self.recordatorios_enviados:
-                                    if self.enviar_recordatorio(turno, horas_anticipacion=2):
-                                        self.recordatorios_enviados.add(recordatorio_id)
-                                        self._guardar_recordatorios_enviados()
-                                        print(f"   📤 Recordatorio 2h enviado para turno {turno['inicio'].strftime('%d/%m %H:%M')}")
-                    
-                    except Exception as e:
-                        print(f"   ❌ Error procesando {peluqueria_key}: {e}")
-                        continue
-                
-                print("   ✅ Verificación completada. Próxima en 1 hora.")
-                
-                # Limpiar recordatorios antiguos
-                with self.recordatorios_lock:
-                    if len(self.recordatorios_enviados) > 1000:
-                        self.recordatorios_enviados.clear()
-                        self._guardar_recordatorios_enviados()
-                        print("   🗑️ Limpieza de cache completada")
-            
-            except Exception as e:
-                print(f"   ❌ Error en sistema de recordatorios: {e}")
-                import traceback
-                traceback.print_exc()
-            
-            # Esperar 1 hora
-            time.sleep(3600)
+        # Por ahora retornamos un variant_id fijo
+        # En producción, crearías productos en LemonSqueezy y usarías sus IDs
+        return os.getenv("LEMONSQUEEZY_DEFAULT_VARIANT_ID", "123456")
     
-    def iniciar_sistema_recordatorios(self):
+    def verificar_webhook_lemonsqueezy(self, payload, signature):
         """
-        Inicia el sistema de recordatorios en un thread separado
-        """
-        hilo_recordatorios = threading.Thread(
-            target=self.sistema_recordatorios_loop,
-            daemon=True,
-            name="RecordatoriosThread"
-        )
-        hilo_recordatorios.start()
-        print("✅ Sistema de recordatorios activado en background")
-        return hilo_recordatorios
-    
-    def notificar_peluquero(self, peluquero, cliente, servicio, fecha_hora, config, telefono_cliente):
-        """
-        Envía notificación al peluquero sobre nuevo turno
+        Verifica la firma del webhook de LemonSqueezy
         
         Args:
-            peluquero: Diccionario con datos del peluquero
-            cliente: Nombre del cliente
-            servicio: Servicio reservado
-            fecha_hora: Datetime del turno
-            config: Configuración de la peluquería
-            telefono_cliente: Teléfono del cliente
+            payload: Body del request (bytes)
+            signature: Header X-Signature
         
         Returns:
-            bool: True si se envió exitosamente
+            bool: True si la firma es válida
         """
+        if not self.lemonsqueezy_webhook_secret:
+            print("⚠️ Webhook secret no configurado")
+            return False
+        
         try:
-            telefono_peluquero = peluquero.get("telefono")
+            expected_signature = hmac.new(
+                self.lemonsqueezy_webhook_secret.encode(),
+                payload,
+                hashlib.sha256
+            ).hexdigest()
             
-            if not telefono_peluquero:
-                print(f"⚠️ Peluquero {peluquero['nombre']} no tiene teléfono configurado")
-                return False
-            
-            # Formatear datos
-            fecha_formateada = formatear_fecha_espanol(fecha_hora)
-            hora = fecha_hora.strftime("%H:%M")
-            telefono_formateado = self._formatear_telefono(telefono_cliente)
-            
-            # Crear mensaje
-            mensaje = (
-                f"🆕 *Nuevo turno - {config['nombre']}*\n\n"
-                f"👤 Cliente: {cliente}\n"
-                f"📱 Teléfono: {telefono_formateado}\n"
-                f"📅 Fecha: {fecha_formateada}\n"
-                f"🕐 Hora: {hora}\n"
-                f"✂️ Servicio: {servicio}"
-            )
-            
-            print(f"📱 Notificando a {peluquero['nombre']}")
-            resultado = whatsapp_service.enviar_mensaje(mensaje, telefono_peluquero)
-            
-            if resultado:
-                print("✅ Notificación enviada al peluquero")
-            
-            return resultado
+            return hmac.compare_digest(signature, expected_signature)
         
         except Exception as e:
-            print(f"❌ Error notificando peluquero: {e}")
+            print(f"❌ Error verificando webhook: {e}")
             return False
     
-    def _formatear_telefono(self, telefono):
-        """Formatea teléfono para mostrar"""
-        if not telefono:
-            return "No disponible"
+    # ==================== MERCADOPAGO (ARGENTINA) ====================
+    
+    def crear_preferencia_mercadopago(self, turno_data):
+        """
+        Crea una preferencia de pago en MercadoPago
         
-        tel_limpio = str(telefono).replace("whatsapp:", "").strip()
+        Args:
+            turno_data: Misma estructura que LemonSqueezy
         
-        # Argentina con 9
-        if tel_limpio.startswith("+549"):
-            codigo_area = tel_limpio[4:7]
-            primera = tel_limpio[7:11]
-            segunda = tel_limpio[11:]
-            return f"+54 9 {codigo_area} {primera}-{segunda}"
+        Returns:
+            dict: {"url": str, "preference_id": str} o None
+        """
+        if not self.mercadopago_access_token:
+            print("⚠️ MercadoPago no configurado")
+            return None
         
-        # Argentina sin 9
-        elif tel_limpio.startswith("+54"):
-            codigo_area = tel_limpio[3:6]
-            primera = tel_limpio[6:10]
-            segunda = tel_limpio[10:]
-            return f"+54 {codigo_area} {primera}-{segunda}"
+        try:
+            url = "https://api.mercadopago.com/checkout/preferences"
+            
+            headers = {
+                "Authorization": f"Bearer {self.mercadopago_access_token}",
+                "Content-Type": "application/json"
+            }
+            
+            # Metadata para identificar el turno
+            metadata = {
+                "peluqueria_key": turno_data["peluqueria_key"],
+                "cliente_nombre": turno_data["cliente_nombre"],
+                "cliente_telefono": turno_data["cliente_telefono"],
+                "servicio": turno_data["servicio"],
+                "fecha_hora": turno_data["fecha_hora"].isoformat(),
+                "peluquero": turno_data.get("peluquero", ""),
+                "tipo": "reserva_turno"
+            }
+            
+            payload = {
+                "items": [
+                    {
+                        "title": f"Turno - {turno_data['servicio']}",
+                        "description": f"Reserva con {turno_data.get('peluquero', 'peluquero')} el {turno_data['fecha_hora'].strftime('%d/%m/%Y %H:%M')}",
+                        "quantity": 1,
+                        "currency_id": "ARS",
+                        "unit_price": float(turno_data["precio"])
+                    }
+                ],
+                "payer": {
+                    "name": turno_data["cliente_nombre"],
+                    "email": turno_data.get("cliente_email", "cliente@email.com"),
+                    "phone": {
+                        "number": turno_data["cliente_telefono"]
+                    }
+                },
+                "back_urls": {
+                    "success": f"{self.app_url}/payment/success",
+                    "failure": f"{self.app_url}/payment/failure",
+                    "pending": f"{self.app_url}/payment/pending"
+                },
+                "auto_return": "approved",
+                "notification_url": f"{self.app_url}/api/webhooks/mercadopago",
+                "metadata": metadata,
+                "expires": True,
+                "expiration_date_from": datetime.now().isoformat(),
+                "expiration_date_to": (datetime.now() + timedelta(hours=2)).isoformat()
+            }
+            
+            response = requests.post(url, json=payload, headers=headers)
+            
+            if response.status_code == 201:
+                data = response.json()
+                init_point = data["init_point"]  # URL de pago
+                preference_id = data["id"]
+                
+                print(f"✅ Preferencia MercadoPago creada: {preference_id}")
+                return {
+                    "url": init_point,
+                    "preference_id": preference_id,
+                    "provider": "mercadopago"
+                }
+            else:
+                print(f"❌ Error creando preferencia MercadoPago: {response.text}")
+                return None
         
-        # USA
-        elif tel_limpio.startswith("+1"):
-            area = tel_limpio[2:5]
-            primera = tel_limpio[5:8]
-            segunda = tel_limpio[8:]
-            return f"+1 ({area}) {primera}-{segunda}"
+        except Exception as e:
+            print(f"❌ Error en crear_preferencia_mercadopago: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+    
+    def verificar_webhook_mercadopago(self, payment_id):
+        """
+        Verifica un pago de MercadoPago consultando su estado
         
-        return tel_limpio
+        Args:
+            payment_id: ID del pago
+        
+        Returns:
+            dict: Información del pago o None
+        """
+        if not self.mercadopago_access_token:
+            return None
+        
+        try:
+            url = f"https://api.mercadopago.com/v1/payments/{payment_id}"
+            
+            headers = {
+                "Authorization": f"Bearer {self.mercadopago_access_token}"
+            }
+            
+            response = requests.get(url, headers=headers)
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                print(f"❌ Error obteniendo pago: {response.text}")
+                return None
+        
+        except Exception as e:
+            print(f"❌ Error verificando pago: {e}")
+            return None
+    
+    # ==================== REEMBOLSOS ====================
+    
+    def crear_reembolso_mercadopago(self, payment_id, monto=None):
+        """
+        Crea un reembolso en MercadoPago
+        
+        Args:
+            payment_id: ID del pago a reembolsar
+            monto: Monto a reembolsar (None = reembolso total)
+        
+        Returns:
+            dict: Información del reembolso o None
+        """
+        if not self.mercadopago_access_token:
+            return None
+        
+        try:
+            url = f"https://api.mercadopago.com/v1/payments/{payment_id}/refunds"
+            
+            headers = {
+                "Authorization": f"Bearer {self.mercadopago_access_token}",
+                "Content-Type": "application/json"
+            }
+            
+            payload = {}
+            if monto:
+                payload["amount"] = float(monto)
+            
+            response = requests.post(url, json=payload, headers=headers)
+            
+            if response.status_code == 201:
+                refund_data = response.json()
+                print(f"✅ Reembolso creado: {refund_data['id']}")
+                return refund_data
+            else:
+                print(f"❌ Error creando reembolso: {response.text}")
+                return None
+        
+        except Exception as e:
+            print(f"❌ Error en crear_reembolso: {e}")
+            return None
+    
+    def crear_reembolso_lemonsqueezy(self, order_id, monto=None):
+        """
+        Crea un reembolso en LemonSqueezy
+        
+        Args:
+            order_id: ID de la orden
+            monto: Monto a reembolsar (None = reembolso total)
+        
+        Returns:
+            dict: Información del reembolso o None
+        """
+        if not self.lemonsqueezy_api_key:
+            return None
+        
+        try:
+            url = f"https://api.lemonsqueezy.com/v1/orders/{order_id}/refund"
+            
+            headers = {
+                "Accept": "application/vnd.api+json",
+                "Content-Type": "application/vnd.api+json",
+                "Authorization": f"Bearer {self.lemonsqueezy_api_key}"
+            }
+            
+            payload = {
+                "data": {
+                    "type": "refunds",
+                    "attributes": {}
+                }
+            }
+            
+            if monto:
+                payload["data"]["attributes"]["amount"] = int(monto * 100)  # Centavos
+            
+            response = requests.post(url, json=payload, headers=headers)
+            
+            if response.status_code == 201:
+                refund_data = response.json()
+                print(f"✅ Reembolso LemonSqueezy creado")
+                return refund_data
+            else:
+                print(f"❌ Error creando reembolso LemonSqueezy: {response.text}")
+                return None
+        
+        except Exception as e:
+            print(f"❌ Error en crear_reembolso_lemonsqueezy: {e}")
+            return None
+    
+    # ==================== UTILIDADES ====================
+    
+    def detectar_pais(self, telefono):
+        """
+        Detecta el país según el código del teléfono
+        
+        Args:
+            telefono: Número de teléfono
+        
+        Returns:
+            str: 'AR' para Argentina, 'INTL' para internacional
+        """
+        telefono_limpio = telefono.replace("+", "").replace(" ", "").replace("-", "")
+        
+        # Argentina: +54
+        if telefono_limpio.startswith("54"):
+            return "AR"
+        
+        return "INTL"
+    
+    def obtener_proveedor_recomendado(self, telefono):
+        """
+        Recomienda el proveedor de pago según el país
+        
+        Args:
+            telefono: Número de teléfono del cliente
+        
+        Returns:
+            str: 'mercadopago' o 'lemonsqueezy'
+        """
+        pais = self.detectar_pais(telefono)
+        
+        if pais == "AR" and self.mercadopago_access_token:
+            return "mercadopago"
+        elif self.lemonsqueezy_api_key:
+            return "lemonsqueezy"
+        else:
+            return None
 
 
-# Instancia global del servicio (se inicializa desde app/__init__.py)
-notification_service = None
-
-
-def inicializar_notification_service(peluquerias_config, templates_config=None):
-    """Inicializa el servicio de notificaciones global"""
-    global notification_service
-    notification_service = NotificationService(peluquerias_config, templates_config)
-    return notification_service
+# Instancia global
+payment_service = PaymentService()

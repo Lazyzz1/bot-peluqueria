@@ -5,6 +5,33 @@
     "calendar_id": "0afaa235107f3a3c6be1c186247291ac1576e7ea3e84f60129244e32f56e9dd6@group.calendar.google.com",
     "token_file": "tokens/master_token.json",
     "owner_email": "demo@peluqueria.com",
+    "timezone": "America/Argentina/Buenos_Aires",
+    "idioma": "es",
+    "moneda": "ARS",
+    "requiere_pago": false,
+    "ubicacion": {
+      "direccion": "Av. Ejemplo 123, Buenos Aires",
+      "telefono": "+5491112345678",
+      "maps_url": "https://maps.google.com/?q=-34.6037,-58.3816"
+    },
+    "horarios": {
+      "lunes": ["09:00", "18:00"],
+      "martes": ["09:00", "18:00"],
+      "miercoles": ["09:00", "18:00"],
+      "jueves": ["09:00", "18:00"],
+      "viernes": ["09:00", "18:00"],
+      "sabado": ["09:00", "14:00"]
+    },
+    "faq": [
+      {
+        "pregunta": "¿Aceptan tarjeta?",
+        "respuesta": "Sí, aceptamos débito y crédito"
+      },
+      {
+        "pregunta": "¿Hacen cortes a domicilio?",
+        "respuesta": "Por el momento solo atendemos en el local"
+      }
+    ],
     "servicios": [
       {
         "nombre": "Corte clásico",
@@ -34,6 +61,7 @@
         "telefono": "+5492974210130",
         "activo": true,
         "mensaje_no_disponible": null,
+        "fecha_regreso": null,
         "especialidades": [
           "Corte clásico",
           "Barba y bigote"
@@ -46,26 +74,14 @@
           "viernes"
         ],
         "horarios": {
-          "lunes": [
-            "09:00",
-            "18:00"
-          ],
-          "martes": [
-            "09:00",
-            "18:00"
-          ],
-          "miercoles": [
-            "09:00",
-            "18:00"
-          ],
+          "lunes": ["09:00", "18:00"],
+          "martes": ["09:00", "18:00"],
+          "miercoles": ["09:00", "18:00"],
           "jueves": [
             ["09:00", "13:00"],
             ["17:00", "20:00"]
           ],
-          "viernes": [
-            "09:00",
-            "18:00"
-          ]
+          "viernes": ["09:00", "18:00"]
         }
       },
       {
@@ -87,22 +103,10 @@
           "sabado"
         ],
         "horarios": {
-          "lunes": [
-            "10:00",
-            "19:00"
-          ],
-          "miercoles": [
-            "10:00",
-            "19:00"
-          ],
-          "viernes": [
-            "10:00",
-            "19:00"
-          ],
-          "sabado": [
-            "09:00",
-            "14:00"
-          ]
+          "lunes": ["10:00", "19:00"],
+          "miercoles": ["10:00", "19:00"],
+          "viernes": ["10:00", "19:00"],
+          "sabado": ["09:00", "14:00"]
         }
       },
       {
@@ -110,7 +114,8 @@
         "nombre": "Miguel",
         "telefono": "+5491199887766",
         "activo": true,
-        "mensaje_no_disponible": null,        
+        "mensaje_no_disponible": null,
+        "fecha_regreso": null,
         "especialidades": [
           "Corte clásico",
           "Corte moderno"
@@ -121,18 +126,9 @@
           "sabado"
         ],
         "horarios": {
-          "martes": [
-            "14:00",
-            "20:00"
-          ],
-          "jueves": [
-            "14:00",
-            "20:00"
-          ],
-          "sabado": [
-            "10:00",
-            "16:00"
-          ]
+          "martes": ["14:00", "20:00"],
+          "jueves": ["14:00", "20:00"],
+          "sabado": ["10:00", "16:00"]
         }
       }
     ]
@@ -143,6 +139,10 @@
     "calendar_id": "0afaa235107f3a3c6be1c186247291ac1576e7ea3e84f60129244e32f56e9dd6@group.calendar.google.com",
     "token_file": "tokens/master_token.json",
     "owner_email": "dev@local.test",
+    "timezone": "America/Argentina/Buenos_Aires",
+    "idioma": "es",
+    "moneda": "ARS",
+    "requiere_pago": false,
     "servicios": [
       {
         "nombre": "Test Corte",
@@ -160,6 +160,9 @@
         "id": "test_peluquero",
         "nombre": "Test Peluquero",
         "telefono": "+5491100000000",
+        "activo": true,
+        "mensaje_no_disponible": null,
+        "fecha_regreso": null,
         "especialidades": [
           "Test Corte",
           "Test Barba"
@@ -173,30 +176,12 @@
           "sabado"
         ],
         "horarios": {
-          "lunes": [
-            "09:00",
-            "18:00"
-          ],
-          "martes": [
-            "09:00",
-            "18:00"
-          ],
-          "miercoles": [
-            "09:00",
-            "18:00"
-          ],
-          "jueves": [
-            "09:00",
-            "18:00"
-          ],
-          "viernes": [
-            "09:00",
-            "18:00"
-          ],
-          "sabado": [
-            "09:00",
-            "14:00"
-          ]
+          "lunes": ["09:00", "18:00"],
+          "martes": ["09:00", "18:00"],
+          "miercoles": ["09:00", "18:00"],
+          "jueves": ["09:00", "18:00"],
+          "viernes": ["09:00", "18:00"],
+          "sabado": ["09:00", "14:00"]
         }
       }
     ]

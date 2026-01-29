@@ -1,7 +1,6 @@
-
 """
 Script para agregar nuevos clientes al bot SaaS
-Uso: python agregar_cliente.py
+VERSIÓN CORREGIDA - Enero 2026
 """
 
 import json
@@ -31,6 +30,7 @@ def hacer_backup(archivo):
             contenido = f.read()
         with open(backup, 'w', encoding='utf-8') as f:
             f.write(contenido)
+        print(f"💾 Backup creado: {backup}")
         return backup
     return None
 
@@ -38,15 +38,30 @@ def agregar_cliente():
     print("🎯 AGREGAR NUEVO CLIENTE AL BOT SAAS")
     print("="*50)
     
-    # Verificar que existe clientes.json
-    if not os.path.exists("clientes.json"):
+    # Buscar clientes.json en varios lugares
+    posibles_rutas = [
+        "clientes.json",
+        "config/clientes.json",
+        "../clientes.json"
+    ]
+    
+    archivo_clientes = None
+    for ruta in posibles_rutas:
+        if os.path.exists(ruta):
+            archivo_clientes = ruta
+            break
+    
+    if not archivo_clientes:
         print("❌ ERROR: No se encontró clientes.json")
-        print("   Crea el archivo primero o copia clientes.json.example")
+        print("   Buscado en:", ", ".join(posibles_rutas))
+        print("   Crea el archivo primero o ejecuta desde el directorio correcto")
         return
+    
+    print(f"✅ Usando: {archivo_clientes}")
     
     # Leer archivo actual
     try:
-        with open("clientes.json", "r", encoding="utf-8") as f:
+        with open(archivo_clientes, "r", encoding="utf-8") as f:
             clientes = json.load(f)
     except json.JSONDecodeError:
         print("❌ ERROR: clientes.json está corrupto")
@@ -93,14 +108,12 @@ def agregar_cliente():
             continue
         break
     
+    # Número de Twilio
     numero_twilio = input("Número de Twilio (ej: +14155238886): ").strip()
-
-    # Validar formato
     while not numero_twilio.startswith('+'):
         print("⚠️ El número debe empezar con + (ej: +14155238886)")
         numero_twilio = input("Número de Twilio: ").strip()
-
-
+    
     # Email con validación
     while True:
         email_cliente = input("Email del cliente (opcional, Enter para omitir): ").strip()
@@ -108,15 +121,24 @@ def agregar_cliente():
             break
         print("❌ Formato de email inválido")
     
+    # Timezone
+    print("\n🌍 Timezone (Enter para default 'America/Argentina/Buenos_Aires'): ")
+    timezone = input("Timezone: ").strip() or "America/Argentina/Buenos_Aires"
+    
+    # Moneda
+    print("\n💰 Moneda (Enter para default 'ARS'): ")
+    moneda = input("Moneda: ").strip().upper() or "ARS"
+    
     # Preguntar por servicios personalizados
     print("\n¿Deseas usar servicios por defecto? (s/n): ", end="")
     usar_default = input().strip().lower()
     
     if usar_default == 's':
         servicios = [
-            {"nombre": "Corte clásico", "precio": 13000, "duracion": 30},
-            {"nombre": "Barba y bigote", "precio": 3000, "duracion": 20},
-            {"nombre": "Tintura", "precio": 12000, "duracion": 60}
+            {"nombre": "Corte clásico", "precio": 15000, "duracion": 30},
+            {"nombre": "Corte moderno", "precio": 18000, "duracion": 45},
+            {"nombre": "Barba y bigote", "precio": 5000, "duracion": 20},
+            {"nombre": "Tintura", "precio": 20000, "duracion": 60}
         ]
     else:
         servicios = []
@@ -129,7 +151,7 @@ def agregar_cliente():
                     continue
                 break
             try:
-                precio = int(input("  Precio (ARS): ").strip())
+                precio = int(input("  Precio (números sin puntos): ").strip())
                 duracion = int(input("  Duración (minutos): ").strip())
                 
                 if precio <= 0 or duracion <= 0:
@@ -166,22 +188,6 @@ def agregar_cliente():
             print("  Déjalo vacío si no quiere recibir notificaciones")
             telefono_peluquero = input("  Teléfono: ").strip()
             
-            # Especialidades
-            print(f"\n  Especialidades de {nombre_peluquero}:")
-            # ... resto del código de especialidades
-            
-            peluquero = {
-                "id": id_peluquero,
-                "nombre": nombre_peluquero,
-                "telefono": telefono_peluquero,  
-                "especialidades": especialidades,
-                "dias_trabajo": dias_trabajo,
-                "horarios": horarios
-            }
-            
-            peluqueros.append(peluquero)
-            print(f"  ✅ '{nombre_peluquero}' agregado")
-
             # Especialidades
             print(f"\n  Especialidades de {nombre_peluquero}:")
             print("  Servicios disponibles:")
@@ -228,9 +234,14 @@ def agregar_cliente():
             except:
                 print("  ⚠️  Error en horarios")
             
+            # Crear peluquero
             peluquero = {
                 "id": id_peluquero,
                 "nombre": nombre_peluquero,
+                "telefono": telefono_peluquero,
+                "activo": True,  # Por defecto activo
+                "mensaje_no_disponible": None,
+                "fecha_regreso": None,
                 "especialidades": especialidades,
                 "dias_trabajo": dias_trabajo,
                 "horarios": horarios
@@ -240,18 +251,26 @@ def agregar_cliente():
             print(f"  ✅ '{nombre_peluquero}' agregado")
     
     # Crear estructura del cliente
-    clientes[key] = {
+    nuevo_cliente = {
         "nombre": nombre,
         "numero_twilio": numero_twilio,
         "calendar_id": calendar_id,
         "token_file": "tokens/master_token.json",
+        "timezone": timezone,
+        "idioma": "es",
+        "moneda": moneda,
+        "requiere_pago": False,  # Por defecto sin pagos
         "servicios": servicios,
-        "peluqueros": peluqueros  
+        "peluqueros": peluqueros
     }
     
+    # Agregar campos opcionales
     if email_cliente:
-        clientes[key]["owner_email"] = email_cliente
-        
+        nuevo_cliente["owner_email"] = email_cliente
+    
+    # Asignar al diccionario principal
+    clientes[key] = nuevo_cliente
+    
     # Mostrar resumen y confirmar
     print("\n" + "="*50)
     print("📋 RESUMEN DEL NUEVO CLIENTE:")
@@ -259,10 +278,16 @@ def agregar_cliente():
     print(f"ID: {key}")
     print(f"Nombre: {nombre}")
     print(f"Calendar ID: {calendar_id}")
+    print(f"Número Twilio: {numero_twilio}")
     print(f"Email: {email_cliente or '(no especificado)'}")
+    print(f"Timezone: {timezone}")
+    print(f"Moneda: {moneda}")
     print(f"Servicios: {len(servicios)}")
     for serv in servicios:
-        print(f"  - {serv['nombre']}: ${serv['precio']} ({serv['duracion']} min)")
+        print(f"  - {serv['nombre']}: ${serv['precio']:,} ({serv['duracion']} min)")
+    print(f"Peluqueros: {len(peluqueros)}")
+    for p in peluqueros:
+        print(f"  - {p['nombre']} ({len(p['especialidades'])} especialidades)")
     print("="*50)
     print("\n¿Confirmar y guardar? (s/n): ", end="")
     
@@ -271,27 +296,24 @@ def agregar_cliente():
         return
     
     # Hacer backup
-    backup_file = hacer_backup("clientes.json")
-    if backup_file:
-        print(f"💾 Backup creado: {backup_file}")
+    hacer_backup(archivo_clientes)
     
-    # Guardar
+    # Guardar (CORREGIDO - sin sobrescribir)
     try:
-        clientes[key] = email_cliente
-        with open("clientes.json", "w", encoding="utf-8") as f:
+        with open(archivo_clientes, "w", encoding="utf-8") as f:
             json.dump(clientes, f, indent=2, ensure_ascii=False)
+        
+        print("\n✅ Cliente agregado exitosamente!")
     except Exception as e:
         print(f"❌ ERROR al guardar: {e}")
-        if backup_file:
-            print(f"   Puedes restaurar desde: {backup_file}")
         return
-  
     
+    # Próximos pasos
     print("\n📋 PRÓXIMOS PASOS:")
     print("1. Compra un número de Twilio:")
     print("   https://console.twilio.com/us1/develop/phone-numbers/manage/search")
     print(f"   - Asegúrate de habilitar WhatsApp")
-    print(f"   - Configura el webhook: https://tu-dominio.railway.app/webhook")
+    print(f"   - Configura el webhook: https://tu-dominio.railway.app/api/webhook")
 
     print("\n2. Crea un calendario en Google Calendar:")
     print(f"   'Turnos - {nombre}'")
@@ -320,3 +342,5 @@ if __name__ == "__main__":
         print("\n\n❌ Operación cancelada por el usuario")
     except Exception as e:
         print(f"\n❌ ERROR INESPERADO: {e}")
+        import traceback
+        traceback.print_exc()

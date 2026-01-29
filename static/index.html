@@ -5,924 +5,44 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Automatiza tus turnos con WhatsApp. Sistema profesional para peluquerías, barberías y centros de belleza. Ahorra tiempo y aumenta tus ventas.">
     <meta name="keywords" content="bot whatsapp, turnos automáticos, peluquería, barbería, automatización">
-    <title>Bot de Turnos WhatsApp | Automatización Profesional</title>
+    <meta name="author" content="TurnosBot">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://turnosbot.com/">
+    <meta property="og:title" content="TurnosBot - Automatización de Turnos por WhatsApp">
+    <meta property="og:description" content="Sistema profesional para gestión automática de turnos vía WhatsApp">
+    <meta property="og:image" content="./assets/og-image.jpg">
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://turnosbot.com/">
+    <meta property="twitter:title" content="TurnosBot - Automatización de Turnos">
+    <meta property="twitter:description" content="Sistema profesional para gestión automática de turnos vía WhatsApp">
+    <meta property="twitter:image" content="./assets/og-image.jpg">
+    
+    <title>TurnosBot | Automatización Profesional de Turnos por WhatsApp</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="./assets/perezoso.avif">
+    
+    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        :root {
-            --primary: #25D366;
-            --primary-dark: #128C7E;
-            --secondary: #075E54;
-            --accent: #34B7F1;
-            --dark: #1a1a1a;
-            --light: #f5f5f5;
-            --white: #ffffff;
-            --gradient: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
-            --shadow: 0 10px 40px rgba(0,0,0,0.1);
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            color: var(--dark);
-            line-height: 1.6;
-            overflow-x: hidden;
-        }
-
-        /* Header */
-        header {
-            background: var(--gradient);
-            color: var(--white);
-            padding: 1rem 0;
-            position: fixed;
-            width: 100%;
-            top: 0;
-            z-index: 1000;
-            box-shadow: var(--shadow);
-        }
-
-        nav {
-            max-width: 1200px;
-            margin: 0 auto;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0 2rem;
-        }
-
-        .logo {
-            font-size: 1.8rem;
-            font-weight: bold;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .nav-links {
-            display: flex;
-            gap: 2rem;
-            list-style: none;
-        }
-
-        .nav-links a {
-            color: var(--white);
-            text-decoration: none;
-            font-weight: 500;
-            transition: opacity 0.3s;
-        }
-
-        .nav-links a:hover {
-            opacity: 0.8;
-        }
-
-        .cta-button {
-            background: var(--white);
-            color: var(--primary);
-            padding: 0.8rem 2rem;
-            border-radius: 50px;
-            text-decoration: none;
-            font-weight: bold;
-            transition: all 0.3s;
-            display: inline-block;
-        }
-
-        .cta-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
-        }
-
-        /* Hero Section */
-        .hero {
-            background: var(--gradient);
-            color: var(--white);
-            padding: 120px 2rem 80px;
-            text-align: center;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .hero::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320"><path fill="%23ffffff" fill-opacity="0.1" d="M0,96L48,112C96,128,192,160,288,160C384,160,480,128,576,122.7C672,117,768,139,864,144C960,149,1056,139,1152,128C1248,117,1344,107,1392,101.3L1440,96L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path></svg>') no-repeat bottom;
-            background-size: cover;
-        }
-
-        .hero-content {
-            max-width: 1200px;
-            margin: 0 auto;
-            position: relative;
-            z-index: 1;
-        }
-
-        .hero h1 {
-            font-size: 3.5rem;
-            margin-bottom: 1.5rem;
-            animation: fadeInUp 0.8s ease-out;
-        }
-
-        .hero p {
-            font-size: 1.5rem;
-            margin-bottom: 2rem;
-            opacity: 0.95;
-            animation: fadeInUp 0.8s ease-out 0.2s backwards;
-        }
-
-        .hero-buttons {
-            display: flex;
-            gap: 1rem;
-            justify-content: center;
-            flex-wrap: wrap;
-            animation: fadeInUp 0.8s ease-out 0.4s backwards;
-        }
-
-        .btn-primary {
-            background: var(--white);
-            color: var(--primary);
-            padding: 1.2rem 3rem;
-            border-radius: 50px;
-            text-decoration: none;
-            font-weight: bold;
-            font-size: 1.2rem;
-            transition: all 0.3s;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 8px 30px rgba(0,0,0,0.3);
-        }
-
-        .btn-secondary {
-            background: transparent;
-            color: var(--white);
-            border: 2px solid var(--white);
-            padding: 1.2rem 3rem;
-            border-radius: 50px;
-            text-decoration: none;
-            font-weight: bold;
-            font-size: 1.2rem;
-            transition: all 0.3s;
-        }
-
-        .btn-secondary:hover {
-            background: var(--white);
-            color: var(--primary);
-        }
-
-        .btn-demo {
-            background: #ff9800;
-            color: var(--white);
-            border: 2px solid #ff9800;
-            padding: 1.2rem 3rem;
-            border-radius: 50px;
-            text-decoration: none;
-            font-weight: bold;
-            font-size: 1.2rem;
-            transition: all 0.3s;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .btn-demo:hover {
-            background: #f57c00;
-            border-color: #f57c00;
-            transform: translateY(-3px);
-            box-shadow: 0 8px 30px rgba(255, 152, 0, 0.4);
-        }
-
-
-        /* Stats Section */
-        .stats {
-            background: var(--white);
-            padding: 4rem 2rem;
-            margin-top: -50px;
-            position: relative;
-            z-index: 2;
-        }
-
-        .stats-container {
-            max-width: 1200px;
-            margin: 0 auto;
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 2rem;
-        }
-
-        .stat-card {
-            background: var(--light);
-            padding: 2rem;
-            border-radius: 15px;
-            text-align: center;
-            transition: all 0.3s;
-            box-shadow: var(--shadow);
-        }
-
-        .stat-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 15px 50px rgba(0,0,0,0.15);
-        }
-
-        .stat-card i {
-            font-size: 3rem;
-            color: var(--primary);
-            margin-bottom: 1rem;
-        }
-
-        .stat-card h3 {
-            font-size: 2.5rem;
-            color: var(--primary);
-            margin-bottom: 0.5rem;
-        }
-
-        .stat-card p {
-            color: var(--secondary);
-            font-weight: 500;
-        }
-
-        .demo-section {
-            padding: 4rem 2rem;
-            background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
-            color: var(--white);
-            text-align: center;
-        }
-
-        .demo-section h2 {
-            font-size: 2.5rem;
-            margin-bottom: 1rem;
-        }
-
-        .demo-section p {
-            font-size: 1.2rem;
-            margin-bottom: 2rem;
-            opacity: 0.95;
-        }
-
-
-        /* Features Section */
-        .features {
-            padding: 6rem 2rem;
-            background: var(--light);
-        }
-
-        .section-title {
-            text-align: center;
-            margin-bottom: 4rem;
-        }
-
-        .section-title h2 {
-            font-size: 2.8rem;
-            color: var(--secondary);
-            margin-bottom: 1rem;
-        }
-
-        .section-title p {
-            font-size: 1.2rem;
-            color: #666;
-        }
-
-        .features-grid {
-            max-width: 1200px;
-            margin: 0 auto;
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 2rem;
-        }
-
-        .feature-card {
-            background: var(--white);
-            padding: 2.5rem;
-            border-radius: 15px;
-            box-shadow: var(--shadow);
-            transition: all 0.3s;
-        }
-
-        .feature-card:hover {
-            transform: translateY(-10px);
-            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
-        }
-
-        .feature-icon {
-            width: 70px;
-            height: 70px;
-            background: var(--gradient);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 1.5rem;
-        }
-
-        .feature-icon i {
-            font-size: 2rem;
-            color: var(--white);
-        }
-
-        .feature-card h3 {
-            font-size: 1.5rem;
-            margin-bottom: 1rem;
-            color: var(--secondary);
-        }
-
-        .feature-card p {
-            color: #666;
-            line-height: 1.8;
-        }
-
-        /* How it Works */
-        .how-it-works {
-            padding: 6rem 2rem;
-            background: var(--white);
-        }
-
-        .steps {
-            max-width: 1200px;
-            margin: 0 auto;
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 3rem;
-        }
-
-        .step {
-            text-align: center;
-            position: relative;
-        }
-
-        .step-number {
-            width: 80px;
-            height: 80px;
-            background: var(--gradient);
-            color: var(--white);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 2.5rem;
-            font-weight: bold;
-            margin: 0 auto 1.5rem;
-            box-shadow: 0 5px 20px rgba(37, 211, 102, 0.3);
-        }
-
-        .step h3 {
-            font-size: 1.5rem;
-            margin-bottom: 1rem;
-            color: var(--secondary);
-        }
-
-        /* Pricing Section */
-        .pricing {
-            padding: 6rem 2rem;
-            background: var(--light);
-        }
-
-        .pricing-card {
-            max-width: 600px;
-            margin: 0 auto;
-            background: var(--white);
-            border-radius: 20px;
-            padding: 3rem;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.1);
-            text-align: center;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .pricing-card::before {
-            content: "";
-            position: absolute;
-            top: 20px;
-            right: -80px;
-            background: #ff4444;
-            color: white;
-            padding: 0.5rem 100px;
-            transform: rotate(45deg);
-            font-weight: bold;
-            font-size: 0.9rem;
-        }
-
-        .pricing-card h3 {
-            font-size: 2rem;
-            color: var(--secondary);
-            margin-bottom: 2rem;
-        }
-
-        .price-setup {
-            font-size: 3rem;
-            font-weight: bold;
-            color: var(--primary);
-            margin-bottom: 0.5rem;
-        }
-
-        .price-setup span {
-            font-size: 1.5rem;
-            color: #666;
-        }
-
-        .price-monthly {
-            font-size: 2rem;
-            color: var(--secondary);
-            margin: 1rem 0 2rem;
-        }
-
-        .includes {
-            text-align: left;
-            margin: 2rem 0;
-            padding: 2rem;
-            background: var(--light);
-            border-radius: 10px;
-        }
-
-        .includes h4 {
-            margin-bottom: 1rem;
-            color: var(--secondary);
-        }
-
-        .includes ul {
-            list-style: none;
-        }
-
-        .includes li {
-            padding: 0.5rem 0;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .includes li i {
-            color: var(--primary);
-        }
-
-        /* Testimonials */
-        .testimonials {
-            padding: 6rem 2rem;
-            background: var(--white);
-        }
-
-        .testimonials-grid {
-            max-width: 1200px;
-            margin: 0 auto;
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 2rem;
-        }
-
-        .testimonial {
-            background: var(--light);
-            padding: 2rem;
-            border-radius: 15px;
-            box-shadow: var(--shadow);
-        }
-
-        .testimonial-header {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            margin-bottom: 1rem;
-        }
-
-        .testimonial-avatar {
-            width: 60px;
-            height: 60px;
-            background: var(--gradient);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--white);
-            font-size: 1.5rem;
-            font-weight: bold;
-        }
-
-        .testimonial-info h4 {
-            color: var(--secondary);
-            margin-bottom: 0.3rem;
-        }
-
-        .testimonial-info p {
-            color: #666;
-            font-size: 0.9rem;
-        }
-
-        .stars {
-            color: #ffc107;
-            margin-bottom: 1rem;
-        }
-
-        /* CTA Section */
-        .cta-section {
-            padding: 6rem 2rem;
-            background: var(--gradient);
-            color: var(--white);
-            text-align: center;
-        }
-
-        .cta-section h2 {
-            font-size: 3rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .cta-section p {
-            font-size: 1.3rem;
-            margin-bottom: 2rem;
-            opacity: 0.95;
-        }
-
-        /* FAQ */
-        .faq {
-            padding: 6rem 2rem;
-            background: var(--white);
-        }
-
-        .faq-container {
-            max-width: 800px;
-            margin: 0 auto;
-        }
-
-        .faq-item {
-            background: var(--light);
-            margin-bottom: 1rem;
-            border-radius: 10px;
-            overflow: hidden;
-        }
-
-        .faq-question {
-            padding: 1.5rem;
-            cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-weight: bold;
-            color: var(--secondary);
-            transition: background 0.3s;
-        }
-
-        .faq-question:hover {
-            background: #e0e0e0;
-        }
-
-        .faq-answer {
-            padding: 0 1.5rem 1.5rem;
-            color: #666;
-            line-height: 1.8;
-        }
-
-        /* Footer */
-        footer {
-            background: var(--secondary);
-            color: var(--white);
-            padding: 3rem 2rem 1rem;
-            text-align: center;
-        }
-
-        .footer-content {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        .social-links {
-            display: flex;
-            justify-content: center;
-            gap: 2rem;
-            margin: 2rem 0;
-        }
-
-        .social-links a {
-            color: var(--white);
-            font-size: 1.8rem;
-            transition: color 0.3s;
-        }
-
-        .social-links a:hover {
-            color: var(--primary);
-        }
-
-        /* WhatsApp Floating Button */
-        .whatsapp-float {
-            position: fixed;
-            bottom: 30px;
-            right: 30px;
-            background: var(--primary);
-            color: var(--white);
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 2rem;
-            box-shadow: 0 5px 20px rgba(37, 211, 102, 0.4);
-            cursor: pointer;
-            transition: all 0.3s;
-            z-index: 1000;
-            animation: pulse 2s infinite;
-        }
-
-        .whatsapp-float:hover {
-            border: 3px solid #2563eb;
-            background: linear-gradient(180deg, #ffffff, #f5f9ff);
-            box-shadow: 0 8px 30px rgba(37, 211, 102, 0.6);
-        }
-
-        /* Animations */
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        @keyframes pulse {
-            0%, 100% {
-                box-shadow: 0 5px 20px rgba(37, 211, 102, 0.4);
-            }
-            50% {
-                box-shadow: 0 5px 30px rgba(37, 211, 102, 0.8);
-            }
-        }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-            .hero h1 {
-                font-size: 2.5rem;
-            }
-
-            .hero p {
-                font-size: 1.2rem;
-            }
-
-            .nav-links {
-                display: none;
-            }
-
-            .hero-buttons {
-                flex-direction: column;
-            }
-
-            .section-title h2 {
-                font-size: 2rem;
-            }
-
-            .cta-section h2 {
-                font-size: 2rem;
-            }
-        }
-
-/* ---------------- PAGOS ---------------- */ 
-    .pagos-container {
-        display: flex;
-        gap: 30px;
-        justify-content: center;
-        align-items: stretch;
-        margin: 0 auto;
-        max-width: 1200px;
-        flex-wrap: wrap;
-        padding: 0 2rem;
-    }
-
-    .pagos-box {
-    display: flex;
-    flex-direction: column;
-    transition: 
-        transform 0.25s ease,
-        box-shadow 0.25s ease;
-    }
-
-    /* Hover suave */
-    .pagos-box:hover {
-        transform: translateY(-6px);
-        box-shadow: 0 30px 80px rgba(0, 0, 0, 0.15);
-    }
-
-    .pagos-box.argentina {
-        border: 2px solid #34B7F1;
-    }
-
-    .pagos-box.internacional {
-        border: 3px solid var(--primary);
-    }
-
-    .pricing-cards {
-        max-width: 1200px;
-        margin: 0 auto;
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 3rem;
-        padding: 0 2rem;
-    }
-
-    .pricing-card.featured {
-        border: 3px solid #3498db;
-        box-shadow: 0 25px 70px rgba(52,152,219,0.25);
-    }
-
-    .badge {
-        position: absolute;
-        top: -15px;
-        right: 20px;
-        background: #ff4444;
-        color: white;
-        padding: 0.5rem 1rem;
-        border-radius: 20px;
-        font-weight: bold;
-        font-size: 0.9rem;
-        box-shadow: 0 5px 15px rgba(255, 68, 68, 0.4);
-    }
-
-    .currency-toggle {
-        display: flex;
-        justify-content: center;
-        gap: 1rem;
-        margin-bottom: 3rem;
-        background: var(--white);
-        padding: 0.5rem;
-        border-radius: 50px;
-        max-width: 300px;
-        margin-left: auto;
-        margin-right: auto;
-        box-shadow: var(--shadow);
-    }
-
-    .currency-btn {
-        padding: 0.8rem 2rem;
-        border: none;
-        background: transparent;
-        border-radius: 25px;
-        cursor: pointer;
-        font-weight: bold;
-        transition: all 0.3s;
-        color: var(--dark);
-    }
-
-    .currency-btn.active {
-        background: var(--gradient);
-        color: var(--white);
-        box-shadow: 0 5px 15px rgba(37, 211, 102, 0.3);
-    }
-
-    .currency-btn:hover:not(.active) {
-        background: var(--light);
-    }
-
-    .payment-methods {
-        display: flex;
-        justify-content: center;
-        gap: 0.8rem;
-        margin-top: 1.5rem;
-        flex-wrap: wrap;
-    }
-
-    .payment-badge {
-        background: var(--light);
-        padding: 0.4rem 0.8rem;
-        border-radius: 8px;
-        font-size: 0.85rem;
-        display: flex;
-        align-items: center;
-        gap: 0.3rem;
-        color: #666;
-    }
-
-    .payment-badge i {
-        font-size: 1.2rem;
-    }
-
-    @media (max-width: 768px) {
-        .pricing-cards {
-            grid-template-columns: 1fr;
-            gap: 2rem;
-        }
-    }        
-    @media (min-width: 1000px) {
-        .pricing-card.featured {
-            border: 3px solid #2563eb;
-            background: linear-gradient(180deg, #ffffff, #f5f9ff);
-        }
-    }
-
-
-
-
-    </style>
-  
-<script src="https://js.stripe.com/v3/"></script>
-
-<script>
-    // Lemonsqueezy configuration
-    const LEMONSQUEEZY_VARIANT_ID = 'TU_VARIANT_ID_AQUI'; // Lo obtienes después de crear el producto
     
-    // Cambiar moneda visual
-    function changeCurrency(currency) {
-        const buttons = document.querySelectorAll('.currency-btn');
-        buttons.forEach(btn => btn.classList.remove('active'));
-        event.target.classList.add('active');
-        
-        console.log('Moneda seleccionada:', currency);
-    }
-
-    // 🍋 Checkout con Lemonsqueezy
-    document.querySelectorAll('.lemon-checkout').forEach(button => {
-        button.addEventListener('click', async () => {
-            // Datos del setup
-            const variantId = button.dataset.variant;
-
-            // Mostrar loading
-            button.disabled = true;
-            const originalText = button.innerHTML;
-            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
-
-            try {
-                const response = await fetch('/create-lemon-checkout', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        variantId: variantId,
-                        email: '',  // Opcional
-                        phone: ''   // Opcional
-                    })
-                });
-
-                const data = await response.json();
-
-                if (data.error) {
-                    throw new Error(data.error);
-                }
-
-                // Redirigir al checkout de Lemonsqueezy
-                if (data.url) {
-                    window.location.href = data.url;
-                } else {
-                    throw new Error('No se recibió URL de checkout');
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                alert('Hubo un error procesando el pago. Por favor contacta por WhatsApp.');
-                
-                // Restaurar botón
-                button.disabled = false;
-                button.innerHTML = originalText;
-            }
-        });
-    });
-
-    // 🍋 OPCIÓN 2: Usar Lemonsqueezy.js (más simple)
-    // Si preferís usar el SDK oficial de Lemonsqueezy:
-    
-    function abrirCheckoutLemon(variantId) {
-        // Lemonsqueezy abrirá un overlay
-        window.createLemonSqueezy();
-        window.LemonSqueezy.Setup({
-            eventHandler: (event) => {
-                if (event === 'Checkout.Success') {
-                    window.location.href = '/success-lemon';
-                }
-            }
-        });
-        
-        window.LemonSqueezy.Url.Open(
-            `https://tu-tienda.lemonsqueezy.com/checkout/buy/${variantId}`
-        );
-    }
-</script>
-
-<!-- AGREGAR ANTES DE </head> -->
-<script src="https://assets.lemonsqueezy.com/lemon.js" defer></script>
-
-
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="./css/styles.css">
 </head>
 <body>
     <!-- Header -->
     <header>
         <nav>
             <div class="logo">
-            <img src="perezoso.avif" alt="TurnosBot" class="logo-img">
-            <style>.logo-img {
-                        height: 65px;
-                        width: auto;
-                        border-radius: 8px;
-                        }
-</style>
-            <span>TurnosBot</span>
+                <img src="./assets/perezoso.avif" alt="TurnosBot Logo" class="logo-img">
+                <span>TurnosBot</span>
             </div>
             <ul class="nav-links">
-                <li><a href="#features">Funciones</a></li>
+                <li><a href="#features">Beneficios</a></li>
+                <li><a href="#how-it-works">Cómo Funciona</a></li>
                 <li><a href="#pricing">Precios</a></li>
                 <li><a href="#faq">FAQ</a></li>
             </ul>
@@ -936,19 +56,16 @@
     <section class="hero">
         <div class="hero-content">
             <h1>🤖 Automatiza tus Turnos con WhatsApp</h1>
-            <p>Sistema profesional para peluquerías, barberías y centros de belleza.<br>Ahorra tiempo, aumenta ventas y mejora la experiencia de tus clientes.</p>
+            <p>Deja que el bot gestione tus reservas 24/7 mientras tú te enfocas en tu negocio</p>
             <div class="hero-buttons">
-                <a href="https://wa.me/5492974924147?text=Hola,%20quiero%20contratar%20TurnosBot" class="btn-primary">
+                <a href="https://wa.me/5492974924147?text=Hola,%20quiero%20información%20sobre%20TurnosBot" class="btn-primary">
                     <i class="fab fa-whatsapp"></i>
-                    Empezar Ahora
+                    Consultar sin Compromiso
                 </a>
-                <a href="https://wa.me/12624767007?text=Hola,%20quiero%20probar%20el%20bot" class="btn-demo">
-                    <i class="fas fa-play-circle"></i>
-                    Probar Demo Gratis
-                </a>                
-                <a href="#features" class="btn-secondary">Ver Más
-                    <i class="fas fa-arrow-down"></i>
-                                       
+                <a href="#how-it-works" class="btn-secondary">Ver Demo</a>
+                <a href="https://wa.me/14155238886?text=hola" target="_blank" class="btn-demo">
+                    <i class="fas fa-play"></i>
+                    Probar Bot Demo
                 </a>
             </div>
         </div>
@@ -958,233 +75,220 @@
     <section class="stats">
         <div class="stats-container">
             <div class="stat-card">
-                <i class="fas fa-clock"></i>
-                <h3>24/7</h3>
-                <p>Disponibilidad Total</p>
+                <div class="stat-number" data-target="95">95%</div>
+                <div class="stat-label">Turnos sin ausencias</div>
             </div>
             <div class="stat-card">
-                <i class="fas fa-chart-line"></i>
-                <h3>80%</h3>
-                <p>Reducción de No-Shows</p>
+                <div class="stat-number" data-target="24">24/7</div>
+                <div class="stat-label">Atención automatizada</div>
             </div>
             <div class="stat-card">
-                <i class="fas fa-users"></i>
-                <h3>10+</h3>
-                <p>Horas Semanales Ahorradas</p>
+                <div class="stat-number" data-target="3">3 hrs</div>
+                <div class="stat-label">Ahorradas por día</div>
             </div>
             <div class="stat-card">
-                <i class="fas fa-smile"></i>
-                <h3>100%</h3>
-                <p>Satisfacción de Clientes</p>
+                <div class="stat-number" data-target="40">40%</div>
+                <div class="stat-label">Más ingresos</div>
             </div>
         </div>
     </section>
 
     <!-- Features Section -->
-    <section class="demo-section">
-        <h2>🎮 Prueba el Bot en Acción</h2>
-        <p>Envía un mensaje a nuestro bot de demostración y experimenta cómo funciona</p>
-        <a href="https://wa.me/12624767007?text=Hola,%20quiero%20probar%20el%20bot" class="btn-primary">
-            <i class="fab fa-whatsapp"></i>
-            Chatear con el Bot Demo
-        </a>
-        <p style="margin-top: 1rem; font-size: 0.9rem; opacity: 0.9;">
-            📱 Número de demo: +1 (262) 476-7007 • 100% funcional • Sin compromiso
-        </p>
-    </section>
-    
     <section id="features" class="features">
         <div class="section-title">
-            <h2>✨ Funciones Principales</h2>
-            <p>Todo lo que necesitas para gestionar tus turnos de forma profesional</p>
+            <h2>💎 Todo lo que necesitas en un solo bot</h2>
+            <p>Funcionalidades diseñadas específicamente para tu negocio</p>
         </div>
         <div class="features-grid">
             <div class="feature-card">
-                <div class="feature-icon">
-                    <i class="fas fa-calendar-check"></i>
-                </div>
+                <span class="feature-icon">📅</span>
                 <h3>Reservas Automáticas</h3>
-                <p>Tus clientes reservan turnos 24/7 sin intervención. El bot muestra horarios disponibles en tiempo real.</p>
+                <p>Tus clientes eligen fecha, hora y peluquero. El bot coordina todo automáticamente sin que muevas un dedo.</p>
             </div>
             <div class="feature-card">
-                <div class="feature-icon">
-                    <i class="fas fa-bell"></i>
-                </div>
+                <span class="feature-icon">🔔</span>
                 <h3>Recordatorios Inteligentes</h3>
-                <p>Envía recordatorios automáticos 24h y 2h antes. Reduce los turnos perdidos hasta un 80%.</p>
+                <p>Envío automático 24h y 2h antes del turno. Reduce ausencias hasta un 95%.</p>
             </div>
             <div class="feature-card">
-                <div class="feature-icon">
-                    <i class="fas fa-users-cog"></i>
-                </div>
-                <h3>Gestión de Peluqueros</h3>
-                <p>Configura horarios, especialidades y disponibilidad de cada profesional de tu equipo.</p>
+                <span class="feature-icon">❌</span>
+                <h3>Cancelaciones Fáciles</h3>
+                <p>Los clientes pueden cancelar o reagendar su turno directamente desde WhatsApp.</p>
             </div>
             <div class="feature-card">
-                <div class="feature-icon">
-                    <i class="fas fa-google"></i>
-                </div>
-                <h3>Google Calendar</h3>
-                <p>Sincronización automática con Google Calendar. Ve todos tus turnos organizados.</p>
+                <span class="feature-icon">👥</span>
+                <h3>Multi-Peluquero</h3>
+                <p>Gestiona horarios individuales de cada profesional con sus especialidades.</p>
             </div>
             <div class="feature-card">
-                <div class="feature-icon">
-                    <i class="fas fa-cut"></i>
-                </div>
-                <h3>Servicios Personalizados</h3>
-                <p>Configura tus servicios con precios y duraciones. Clientes pueden elegir múltiples servicios.</p>
+                <span class="feature-icon">📊</span>
+                <h3>Sincronización con Google Calendar</h3>
+                <p>Todos tus turnos sincronizados en tiempo real. Verifica disponibilidad al instante.</p>
             </div>
             <div class="feature-card">
-                <div class="feature-icon">
-                    <i class="fas fa-mobile-alt"></i>
-                </div>
-                <h3>100% en WhatsApp</h3>
-                <p>Tus clientes no necesitan instalar nada. Todo funciona dentro de WhatsApp.</p>
+                <span class="feature-icon">🌍</span>
+                <h3>Multi-Idioma</h3>
+                <p>Soporta español, inglés y portugués. Ideal para zonas turísticas.</p>
             </div>
         </div>
     </section>
 
-    <!-- How it Works -->
-    <section class="how-it-works">
+    <!-- How It Works Section -->
+    <section id="how-it-works" class="how-it-works">
         <div class="section-title">
-            <h2>🚀 ¿Cómo Funciona?</h2>
-            <p>En 3 simples pasos empiezas a automatizar</p>
+            <h2>⚙️ Súper simple, en 3 pasos</h2>
         </div>
-        <div class="steps">
+        <div class="steps-container">
             <div class="step">
                 <div class="step-number">1</div>
-                <h3>Nos Contactás</h3>
-                <p>Te pedimos los datos de tu negocio: servicios, horarios, peluqueros</p>
+                <div class="step-content">
+                    <h3>Nos pasas tus datos</h3>
+                    <p>Nombre del negocio, servicios, precios, horarios de tus peluqueros. Lo configuramos TODO por ti en menos de 48 horas.</p>
+                </div>
             </div>
             <div class="step">
                 <div class="step-number">2</div>
-                <h3>Configuramos Todo</h3>
-                <p>En 48hs tu bot está listo y funcionando con tu número de WhatsApp</p>
+                <div class="step-content">
+                    <h3>Te damos un número de WhatsApp</h3>
+                    <p>Número exclusivo para tu bot. Tus clientes escriben y el bot responde automáticamente. Tu número personal queda libre.</p>
+                </div>
             </div>
             <div class="step">
                 <div class="step-number">3</div>
-                <h3>¡Listo!</h3>
-                <p>Compartís tu número y tus clientes empiezan a reservar automáticamente</p>
+                <div class="step-content">
+                    <h3>¡Listo! A trabajar</h3>
+                    <p>El bot gestiona turnos, envía recordatorios y cancela ausencias. Tú solo te presentas a trabajar.</p>
+                </div>
             </div>
         </div>
     </section>
 
     <!-- Pricing Section -->
-<section id="pricing" class="pricing">
-    <div class="section-title">
-        <h2>💰 Inversión</h2>
-        <p>Precio transparente, sin sorpresas - Elige tu moneda</p>
-    </div>
-
-    <!-- Currency Toggle -->
-    <div class="currency-toggle">
-        <button class="currency-btn active" onclick="changeCurrency('ARS')">
-            🇦🇷 ARS
-        </button>
-        <button class="currency-btn" onclick="changeCurrency('USD')">
-            🌎 USD
-        </button>
-    </div>
-
-    <!-- Contenedor de pagos lado a lado -->
-    <div class="pagos-container">
-        <!-- Plan Argentina (ARS) -->
-        <div class="pricing-card pagos-box argentina ars-plan">
-            <h3>🇦🇷 Plan Argentina</h3>
-            <div class="price-setup">
-                $200.000
-                <span style="display: block; font-size: 1rem; color: #666;">Setup único</span>
-            </div>
-            <div class="price-monthly">
-                + $65.000/mes
-            </div>
-            
-            <div class="includes">
-                <h4>✅ Incluye:</h4>
-                <ul>
-                    <li><i class="fas fa-check-circle"></i> Número de WhatsApp Business dedicado</li>
-                    <li><i class="fas fa-check-circle"></i> Configuración completa personalizada</li>
-                    <li><i class="fas fa-check-circle"></i> Integración con Google Calendar</li>
-                    <li><i class="fas fa-check-circle"></i> Recordatorios automáticos ilimitados</li>
-                    <li><i class="fas fa-check-circle"></i> Soporte técnico por WhatsApp</li>
-                    <li><i class="fas fa-check-circle"></i> Actualizaciones incluidas</li>
-                    <li><i class="fas fa-check-circle"></i> Hosting en servidor premium</li>
-                    <li><i class="fas fa-check-circle"></i> QR del número de teléfono</li>
+    <section id="pricing" class="pricing">
+        <div class="section-title">
+            <h2>💰 Precios transparentes, sin sorpresas</h2>
+            <p>Elige tu método de pago preferido</p>
+        </div>
+        
+        <div class="pricing-grid-dual">
+            <!-- PAGO ARGENTINA -->
+            <div class="pricing-card-large featured">
+                <span class="popular-badge">🇦🇷 Argentina</span>
+                <div class="payment-header">
+                    <span class="payment-icon">💳</span>
+                    <h3 class="plan-name">Pago Argentina</h3>
+                    <p class="payment-subtitle">MercadoPago - Pesos Argentinos</p>
+                </div>
+                
+                <div class="price-large">$65.000</div>
+                <p class="price-period">ARS/mes</p>
+                
+                <div class="price-note">
+                    ≈ USD $46 al tipo de cambio oficial
+                </div>
+                
+                <ul class="features-list">
+                    <li>✓ Bot de WhatsApp completo</li>
+                    <li>✓ Turnos y cancelaciones ilimitadas</li>
+                    <li>✓ Recordatorios automáticos 24h y 2h antes</li>
+                    <li>✓ Sincronización con Google Calendar</li>
+                    <li>✓ Multi-peluquero (hasta 5 profesionales)</li>
+                    <li>✓ Personalización de servicios y horarios</li>
+                    <li>✓ Soporte técnico por WhatsApp</li>
+                    <li>✓ Sin costos de configuración</li>
                 </ul>
+                
+                <button class="select-plan-btn argentina-btn" data-plan="Argentina" data-price="65000" data-currency="ARS">
+                    <i class="fas fa-credit-card"></i>
+                    Pagar con MercadoPago
+                </button>
+                
+                <div class="payment-methods">
+                    <span class="payment-badge">
+                        <i class="fab fa-cc-visa"></i> Visa
+                    </span>
+                    <span class="payment-badge">
+                        <i class="fab fa-cc-mastercard"></i> Mastercard
+                    </span>
+                    <span class="payment-badge">
+                        <i class="fas fa-university"></i> Transferencia
+                    </span>
+                    <span class="payment-badge">
+                        <i class="fas fa-money-bill-wave"></i> Efectivo
+                    </span>
+                </div>
+                
+                <div class="payment-features">
+                    <p>✓ Pago en pesos argentinos</p>
+                    <p>✓ Hasta 12 cuotas sin interés</p>
+                    <p>✓ Factura A o B</p>
+                </div>
             </div>
 
-            <a href="https://wa.me/5492974924147?text=Hola,%20quiero%20contratar%20TurnosBot%20-%20Plan%20Argentina" 
-               class="btn-primary" 
-               style="margin-top: 2rem; width: 100%; justify-content: center;">
-                <i class="fab fa-whatsapp"></i>
-                Contratar (MercadoPago)
-            </a>
-
-            <div class="payment-methods">
-                <span class="payment-badge">
-                    <i class="fas fa-credit-card"></i> MercadoPago
-                </span>
-                <span class="payment-badge">
-                    <i class="fas fa-money-bill-wave"></i> Transferencia
-                </span>
+            <!-- PAGO INTERNACIONAL -->
+            <div class="pricing-card-large">
+                <span class="badge-international">🌎 Internacional</span>
+                <div class="payment-header">
+                    <span class="payment-icon">💰</span>
+                    <h3 class="plan-name">Pago Internacional</h3>
+                    <p class="payment-subtitle">Tarjeta Internacional - Dólares</p>
+                </div>
+                
+                <div class="price-large">$99</div>
+                <p class="price-period">USD/mes</p>
+                
+                <div class="price-note">
+                    Acepta tarjetas de todo el mundo
+                </div>
+                
+                <ul class="features-list">
+                    <li>✓ Bot de WhatsApp completo</li>
+                    <li>✓ Turnos y cancelaciones ilimitadas</li>
+                    <li>✓ Recordatorios automáticos 24h y 2h antes</li>
+                    <li>✓ Sincronización con Google Calendar</li>
+                    <li>✓ Multi-peluquero (hasta 5 profesionales)</li>
+                    <li>✓ Personalización de servicios y horarios</li>
+                    <li>✓ Soporte técnico por WhatsApp</li>
+                    <li>✓ Sin costos de configuración</li>
+                </ul>
+                
+                <button class="select-plan-btn international-btn" data-plan="Internacional" data-price="99" data-currency="USD">
+                    <i class="fas fa-globe"></i>
+                    Pagar con Tarjeta Internacional
+                </button>
+                
+                <div class="payment-methods">
+                    <span class="payment-badge">
+                        <i class="fab fa-cc-visa"></i> Visa
+                    </span>
+                    <span class="payment-badge">
+                        <i class="fab fa-cc-mastercard"></i> Mastercard
+                    </span>
+                    <span class="payment-badge">
+                        <i class="fab fa-cc-amex"></i> Amex
+                    </span>
+                    <span class="payment-badge">
+                        <i class="fab fa-paypal"></i> PayPal
+                    </span>
+                </div>
+                
+                <div class="payment-features">
+                    <p>✓ Pago en dólares (USD)</p>
+                    <p>✓ Acepta tarjetas de cualquier país</p>
+                    <p>✓ Procesamiento seguro SSL</p>
+                </div>
             </div>
         </div>
 
-        <!-- Plan Internacional (USD) - FEATURED -->
-        <div class="pricing-card pagos-box internacional usd-plan featured">
-            <span class="badge">⭐ INTERNACIONAL</span>
-            <h3>🌎 Plan Global</h3>
-            <div class="price-setup">
-                USD $99
-                <span style="display: block; font-size: 1rem; color: #666;">Setup único</span>
-            </div>
-            <div class="price-monthly">
-                + USD $49/mes
-            </div>
-            
-            <div class="includes">
-                <h4>✅ Incluye:</h4>
-                <ul>
-                    <li><i class="fas fa-check-circle"></i> Todo del Plan Argentina</li>
-                    <li><i class="fas fa-check-circle"></i> Soporte multilenguaje (ES/EN)</li>
-                    <li><i class="fas fa-check-circle"></i> Timezone personalizado</li>
-                    <li><i class="fas fa-check-circle"></i> Moneda local configurada</li>
-                    <li><i class="fas fa-check-circle"></i> Pago internacional con tarjeta</li>
-                    <li><i class="fas fa-check-circle"></i> Base de datos MongoDB incluida</li>
-                    <li><i class="fas fa-check-circle"></i> SSL y seguridad avanzada</li>
-                    <li><i class="fas fa-check-circle"></i> Hosting global premium</li>
-                </ul>
-            </div>
-
-            <button class="btn-primary lemon-checkout" 
-                    style="margin-top: 2rem; width: 100%; justify-content: center;" 
-                    data-variant="TU_VARIANT_ID_AQUI">
-                <i class="fas fa-credit-card"></i>
-                Pagar con Tarjeta Internacional
-            </button>
-
-            <div class="payment-methods">
-                <span class="payment-badge">
-                    <i class="fab fa-cc-visa"></i> Visa
-                </span>
-                <span class="payment-badge">
-                    <i class="fab fa-cc-mastercard"></i> Mastercard
-                </span>
-                <span class="payment-badge">
-                    <i class="fab fa-cc-amex"></i> Amex
-                </span>
-                <span class="payment-badge">
-                    <i class="fab fa-paypal"></i> PayPal
-                </span>
-            </div>
+        <p style="margin-top: 3rem; text-align: center; color: #666; font-size: 0.9rem;">
+            💳 Pagos 100% seguros • Sin cargos ocultos • Cancela cuando quieras
+        </p>
+        
+        <div class="pricing-note">
+            <p>🔒 Todos los pagos son procesados de forma segura a través de plataformas certificadas</p>
+            <p>📧 Recibirás confirmación por email y WhatsApp</p>
         </div>
-    </div>
-
-    <p style="margin-top: 3rem; text-align: center; color: #666; font-size: 0.9rem;">
-        💳 Pagos 100% seguros • Sin cargos ocultos • Cancela cuando quieras
-    </p>
-</section>
-
+    </section>
 
     <!-- Testimonials -->
     <section class="testimonials">
@@ -1305,80 +409,29 @@
     <footer>
         <div class="footer-content">
             <div class="logo" style="justify-content: center; margin-bottom: 1rem;">
-                <img src="perezoso.avif" alt="TurnosBot" class="logo-img">
+                <img src="./assets/perezoso.avif" alt="TurnosBot" class="logo-img">
                 <span>TurnosBot</span>
             </div>
             <p>Automatización profesional de turnos para peluquerías y centros de belleza</p>
             <div class="social-links">
-                <a href="https://wa.me/5492974924147" target="_blank"><i class="fab fa-whatsapp"></i></a>
-                
+                <a href="https://wa.me/5492974924147" target="_blank" title="WhatsApp">
+                    <i class="fab fa-whatsapp"></i>
+                </a>
+                <!-- Agregar más redes sociales si tienes -->
             </div>
             <p style="opacity: 0.7; font-size: 0.9rem;">© 2026 Lazyzz. Todos los derechos reservados.</p>
         </div>
     </footer>
 
     <!-- WhatsApp Floating Button -->
-    <a href="https://wa.me/5492974924147?text=Hola,%20quiero%20información%20sobre%20TurnosBot" class="whatsapp-float" target="_blank">
+    <a href="https://wa.me/5492974924147?text=Hola,%20quiero%20información%20sobre%20TurnosBot" 
+       class="whatsapp-float" 
+       target="_blank"
+       title="Contactar por WhatsApp">
         <i class="fab fa-whatsapp"></i>
     </a>
 
-    <script>
-        // Smooth scroll
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-            anchor.addEventListener('click', function (e) {
-                e.preventDefault();
-                const target = document.querySelector(this.getAttribute('href'));
-                if (target) {
-                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
-            });
-        });
-
-        // FAQ Toggle
-        document.querySelectorAll('.faq-question').forEach(question => {
-            question.addEventListener('click', function() {
-                const answer = this.nextElementSibling;
-                const icon = this.querySelector('i');
-                
-                // Toggle answer
-                if (answer.style.display === 'block') {
-                    answer.style.display = 'none';
-                    icon.style.transform = 'rotate(0deg)';
-                } else {
-                    // Close all other answers
-                    document.querySelectorAll('.faq-answer').forEach(a => a.style.display = 'none');
-                    document.querySelectorAll('.faq-question i').forEach(i => i.style.transform = 'rotate(0deg)');
-                    
-                    answer.style.display = 'block';
-                    icon.style.transform = 'rotate(180deg)';
-                }
-            });
-        });
-
-        // Initial state for FAQ answers
-        document.querySelectorAll('.faq-answer').forEach(answer => {
-            answer.style.display = 'none';
-        });
-
-        // Animation on scroll
-        const observerOptions = {
-            threshold: 0.1,
-            rootMargin: '0px 0px -100px 0px'
-        };
-
-        const observer = new IntersectionObserver(function(entries) {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.style.animation = 'fadeInUp 0.6s ease-out';
-                    entry.target.style.opacity = '1';
-                }
-            });
-        }, observerOptions);
-
-        document.querySelectorAll('.feature-card, .step, .testimonial, .stat-card').forEach(el => {
-            el.style.opacity = '0';
-            observer.observe(el);
-        });
-    </script>
+    <!-- JavaScript -->
+    <script src="./js/script.js"></script>
 </body>
 </html>

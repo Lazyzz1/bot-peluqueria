@@ -1,81 +1,101 @@
-# =========================
-# Python
-# =========================
+# ==================== ENVIRONMENT ====================
+.env
+.env.local
+.env.*.local
+*.env
+
+# ==================== TOKENS & SECRETS ====================
+tokens/*.json
+!tokens/.gitkeep
+credentials.json
+*_token.json
+
+# ==================== PYTHON ====================
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
+*$py.class
+*.so
+.Python
 
-# =========================
-# Entornos virtuales
-# =========================
-.venv/
+# Virtual environments
 venv/
 env/
+ENV/
+.venv
 
-# =========================
-# Variables de entorno
-# =========================
-.env
-.env.*
+# Distribution / packaging
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# =========================
-# Tokens y credenciales
-# =========================
-config/tokens/
-*.pem
-*.key
-*.json.key
+# ==================== BACKUPS ====================
+*.backup_*
+clientes.json.backup_*
+*.bak
 
-# PERMITIR solo clientes.json
-!config/clientes.json
-
-# =========================
-# Logs
-# =========================
-*.log
-
-# =========================
-# Binarios / instaladores
-# =========================
-*.exe
-*.msi
-*.zip
-*.tar
-*.gz
-
-# =========================
-# Archivos del sistema
-# =========================
-.DS_Store
-Thumbs.db
-
-# =========================
-# IDEs / Editores
-# =========================
+# ==================== IDE ====================
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
 
-# =========================
-# Tests temporales / coverage
-# =========================
+# PyCharm
+.idea/
+
+# Visual Studio Code
+.vscode/
+
+# ==================== LOGS ====================
+*.log
+logs/
+*.log.*
+
+# ==================== OS ====================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ==================== TESTING ====================
+.pytest_cache/
 .coverage
 htmlcov/
-.pytest_cache/
+.tox/
 
-# =========================
-# Ngrok / túneles
-# =========================
-ngrok*
-*.ngrok
+# ==================== DATABASES ====================
+*.db
+*.sqlite
+*.sqlite3
 
-# =========================
-# QR / archivos generados
-# =========================
-qr_*.png
-qr_*.jpg
+# ==================== TEMPORARY FILES ====================
+*.tmp
+*.temp
+.cache/
 
-# =========================
-# Node / Frontend (si agrego JS)
-# =========================
-node_modules/
+# ==================== JUPYTER NOTEBOOKS ====================
+.ipynb_checkpoints/
+*.ipynb
+
+# ==================== RAILWAY ====================
+.railway/
+
+# ==================== OTROS ====================
+*.csv
+!example.csv
+ngrok

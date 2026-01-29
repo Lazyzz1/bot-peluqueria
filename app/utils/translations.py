@@ -1,175 +1,170 @@
+"""
+Sistema de Traducciones
+Soporte para múltiples idiomas
+"""
+
+# Traducciones disponibles
 TRANSLATIONS = {
     "es": {
-        # Menú principal
-        "menu_bienvenida": "👋 ¡Hola! Bienvenido a *{nombre}* 💈\n\nElige una opción:",
-        "opcion_pedir_turno": "Pedir turno",
-        "opcion_ver_turnos": "Ver mis turnos",
-        "opcion_cancelar": "Cancelar turno",
-        "opcion_servicios": "Servicios y precios",
-        "opcion_reagendar": "Reagendar turno",
-        "opcion_faq": "Preguntas frecuentes",
-        "opcion_ubicacion": "Ubicación y contacto",
-        "opcion_salir": "Salir",
-        "escribe_numero": "Escribí el número de la opción",
+        # Menú
+        "menu_welcome": "👋 *¡Bienvenido a {nombre}!*",
+        "menu_option_1": "1️⃣ Pedir turno",
+        "menu_option_2": "2️⃣ Ver mis turnos",
+        "menu_option_3": "3️⃣ Cancelar turno",
+        "menu_option_4": "4️⃣ Ver servicios",
+        "menu_option_5": "5️⃣ Reagendar turno",
+        "menu_option_6": "6️⃣ Preguntas frecuentes",
+        "menu_option_7": "7️⃣ Ubicación y contacto",
+        "menu_option_0": "0️⃣ Salir",
+        "menu_prompt": "Escribí el número de la opción que querés",
         
-        # Flujo de reserva
-        "seleccionar_peluquero": "💁 *¿Con qué peluquero querés tu turno?*",
-        "seleccionar_dia": "📅 *¿Qué día preferís?*",
-        "seleccionar_horario": "🕐 Horarios disponibles:",
-        "nombre_turno": "Perfecto ✂️ ¿A nombre de quién tomo el turno?",
-        "seleccionar_servicio": "📋 *¿Qué servicio(s) querés?*",
+        # Mensajes comunes
+        "invalid_option": "❓ No entendí '{texto}'",
+        "operation_cancelled": "❌ Operación cancelada",
+        "error_occurred": "❌ Ocurrió un error",
+        "back_to_menu": "Escribí *menu* para volver",
         
-        # Confirmaciones
-        "turno_confirmado": "✅ *Turno confirmado*\n\n👤 Cliente: {cliente}\n📅 Fecha: {fecha}\n🕐 Hora: {hora}\n✂️ Servicio(s): {servicio}\n💰 Total: {precio}\n\n¡Te esperamos! 💈",
-        "turno_cancelado": "✅ Turno cancelado exitosamente\n\n📅 {fecha} a las {hora}\n\n¡Esperamos verte pronto! 💈",
+        # Reservas
+        "booking_confirmed": "✅ *Turno confirmado*",
+        "no_availability": "😕 No hay horarios disponibles",
+        "select_barber": "👤 ¿Con qué peluquero querés tu turno?",
+        "select_day": "📅 Días disponibles",
+        "select_time": "🕒 Horarios disponibles",
+        "enter_name": "Perfecto ✂️ ¿A nombre de quién tomo el turno?",
+        "select_service": "📋 *¿Qué servicio(s) querés?*",
         
-        # Errores
-        "error_generico": "❌ Ocurrió un error.\n\nEscribí *menu* para volver.",
-        "opcion_invalida": "❌ Opción inválida. Elegí uno de la lista.",
-        "no_hay_turnos": "🔭 No tenés turnos reservados.",
-        
-        # Días de la semana
-        "lunes": "Lunes",
-        "martes": "Martes",
-        "miercoles": "Miércoles",
-        "jueves": "Jueves",
-        "viernes": "Viernes",
-        "sabado": "Sábado",
-        "domingo": "Domingo",
+        # Despedida
+        "goodbye": "👋 ¡Gracias por contactarnos!",
+        "come_back": "Cuando quieras volver, escribí *hola* o *menu*"
     },
     
     "en": {
-        # Main menu
-        "menu_bienvenida": "👋 Hello! Welcome to *{nombre}* 💈\n\nChoose an option:",
-        "opcion_pedir_turno": "Book appointment",
-        "opcion_ver_turnos": "View my appointments",
-        "opcion_cancelar": "Cancel appointment",
-        "opcion_servicios": "Services & pricing",
-        "opcion_reagendar": "Reschedule",
-        "opcion_faq": "FAQ",
-        "opcion_ubicacion": "Location & contact",
-        "opcion_salir": "Exit",
-        "escribe_numero": "Type the option number",
+        # Menu
+        "menu_welcome": "👋 *Welcome to {nombre}!*",
+        "menu_option_1": "1️⃣ Book appointment",
+        "menu_option_2": "2️⃣ View my appointments",
+        "menu_option_3": "3️⃣ Cancel appointment",
+        "menu_option_4": "4️⃣ View services",
+        "menu_option_5": "5️⃣ Reschedule appointment",
+        "menu_option_6": "6️⃣ FAQ",
+        "menu_option_7": "7️⃣ Location & contact",
+        "menu_option_0": "0️⃣ Exit",
+        "menu_prompt": "Type the number of the option you want",
         
-        # Booking flow
-        "seleccionar_peluquero": "💁 *Who would you like your appointment with?*",
-        "seleccionar_dia": "📅 *What day works for you?*",
-        "seleccionar_horario": "🕐 Available times:",
-        "nombre_turno": "Perfect ✂️ What name should I book it under?",
-        "seleccionar_servicio": "📋 *What service(s) would you like?*",
+        # Common messages
+        "invalid_option": "❓ I didn't understand '{texto}'",
+        "operation_cancelled": "❌ Operation cancelled",
+        "error_occurred": "❌ An error occurred",
+        "back_to_menu": "Type *menu* to go back",
         
-        # Confirmations
-        "turno_confirmado": "✅ *Appointment confirmed*\n\n👤 Client: {cliente}\n📅 Date: {fecha}\n🕐 Time: {hora}\n✂️ Service(s): {servicio}\n💰 Total: {precio}\n\nSee you soon! 💈",
-        "turno_cancelado": "✅ Appointment cancelled\n\n📅 {fecha} at {hora}\n\nHope to see you again! 💈",
+        # Bookings
+        "booking_confirmed": "✅ *Appointment confirmed*",
+        "no_availability": "😕 No availability",
+        "select_barber": "👤 Which barber would you like?",
+        "select_day": "📅 Available days",
+        "select_time": "🕒 Available times",
+        "enter_name": "Perfect ✂️ What name should I book it under?",
+        "select_service": "📋 *What service(s) would you like?*",
         
-        # Errors
-        "error_generico": "❌ An error occurred.\n\nType *menu* to go back.",
-        "opcion_invalida": "❌ Invalid option. Choose from the list.",
-        "no_hay_turnos": "🔭 You have no appointments.",
-        
-        # Days of the week
-        "lunes": "Monday",
-        "martes": "Tuesday",
-        "miercoles": "Wednesday",
-        "jueves": "Thursday",
-        "viernes": "Friday",
-        "sabado": "Saturday",
-        "domingo": "Sunday",
+        # Goodbye
+        "goodbye": "👋 Thanks for contacting us!",
+        "come_back": "Type *hello* or *menu* anytime to come back"
     },
     
     "pt": {
-        # Menu principal
-        "menu_bienvenida": "👋 Olá! Bem-vindo ao *{nome}* 💈\n\nEscolha uma opção:",
-        "opcion_pedir_turno": "Marcar horário",
-        "opcion_ver_turnos": "Ver meus horários",
-        "opcion_cancelar": "Cancelar horário",
-        "opcion_servicios": "Serviços e preços",
-        "opcion_reagendar": "Reagendar",
-        "opcion_faq": "Perguntas frequentes",
-        "opcion_ubicacion": "Localização e contato",
-        "opcion_salir": "Sair",
-        "escribe_numero": "Digite o número da opção",
-        # ... resto de traducciones
+        # Menu
+        "menu_welcome": "👋 *Bem-vindo ao {nombre}!*",
+        "menu_option_1": "1️⃣ Marcar horário",
+        "menu_option_2": "2️⃣ Ver meus horários",
+        "menu_option_3": "3️⃣ Cancelar horário",
+        "menu_option_4": "4️⃣ Ver serviços",
+        "menu_option_5": "5️⃣ Reagendar horário",
+        "menu_option_6": "6️⃣ Perguntas frequentes",
+        "menu_option_7": "7️⃣ Localização e contato",
+        "menu_option_0": "0️⃣ Sair",
+        "menu_prompt": "Digite o número da opção desejada",
+        
+        # Common messages
+        "invalid_option": "❓ Não entendi '{texto}'",
+        "operation_cancelled": "❌ Operação cancelada",
+        "error_occurred": "❌ Ocorreu um erro",
+        "back_to_menu": "Digite *menu* para voltar",
+        
+        # Bookings
+        "booking_confirmed": "✅ *Horário confirmado*",
+        "no_availability": "😕 Sem disponibilidade",
+        "select_barber": "👤 Com qual cabeleireiro você quer?",
+        "select_day": "📅 Dias disponíveis",
+        "select_time": "🕒 Horários disponíveis",
+        "enter_name": "Perfeito ✂️ Em nome de quem?",
+        "select_service": "📋 *Qual(is) serviço(s) você quer?*",
+        
+        # Goodbye
+        "goodbye": "👋 Obrigado por entrar em contato!",
+        "come_back": "Digite *olá* ou *menu* quando quiser voltar"
     }
 }
+
 
 def t(key, idioma="es", **kwargs):
     """
-    Traduce una key al idioma especificado
+    Obtiene una traducción
     
     Args:
-        key: Clave de traducción
-        idioma: Código de idioma (es, en, pt)
-        **kwargs: Variables para formatear (ej: nombre="Peluquería")
+        key: Clave de la traducción
+        idioma: Código del idioma (es, en, pt)
+        **kwargs: Variables para formatear el texto
     
     Returns:
-        str: Texto traducido y formateado
+        str: Texto traducido
     """
-    texto = TRANSLATIONS.get(idioma, TRANSLATIONS["es"]).get(key, key)
+    # Obtener traducciones del idioma (fallback a español)
+    translations = TRANSLATIONS.get(idioma, TRANSLATIONS["es"])
     
+    # Obtener texto (fallback a la clave si no existe)
+    texto = translations.get(key, key)
+    
+    # Formatear con variables si hay
     if kwargs:
         try:
-            return texto.format(**kwargs)
+            texto = texto.format(**kwargs)
         except KeyError:
-            return texto
+            pass
     
     return texto
 
-def detectar_idioma_por_pais(telefono):
+
+def get_available_languages():
     """
-    Detecta idioma según el código de país del teléfono
-    
-    Args:
-        telefono: +5492974210130, +12624767007, etc.
+    Obtiene lista de idiomas disponibles
     
     Returns:
-        str: Código de idioma (es, en, pt)
+        list: Códigos de idiomas disponibles
     """
-    tel_limpio = telefono.replace("whatsapp:", "").replace("+", "").strip()
+    return list(TRANSLATIONS.keys())
+
+
+def detect_language(texto):
+    """
+    Intenta detectar el idioma del texto (muy básico)
     
-    # Español
-    if tel_limpio.startswith("54"):   # Argentina
-        return "es"
-    if tel_limpio.startswith("52"):   # México
-        return "es"
-    if tel_limpio.startswith("34"):   # España
-        return "es"
-    if tel_limpio.startswith("56"):   # Chile
-        return "es"
-    if tel_limpio.startswith("57"):   # Colombia
-        return "es"
+    Args:
+        texto: Texto a analizar
     
-    # Inglés
-    if tel_limpio.startswith("1"):    # USA/Canadá
+    Returns:
+        str: Código del idioma detectado
+    """
+    texto_lower = texto.lower()
+    
+    # Palabras clave en inglés
+    en_keywords = ["hello", "hi", "appointment", "booking", "schedule"]
+    if any(word in texto_lower for word in en_keywords):
         return "en"
-    if tel_limpio.startswith("44"):   # UK
-        return "en"
     
-    # Portugués
-    if tel_limpio.startswith("55"):   # Brasil
-        return "pt"
-    if tel_limpio.startswith("351"):  # Portugal
+    # Palabras clave en portugués
+    pt_keywords = ["olá", "oi", "horário", "agendar", "marcar"]
+    if any(word in texto_lower for word in pt_keywords):
         return "pt"
     
-    # Default
+    # Por defecto español
     return "es"
-
-FORMATOS_FECHA = {
-    "es": "%d/%m/%Y",  # 13/01/2026
-    "en": "%m/%d/%Y",  # 01/13/2026
-    "pt": "%d/%m/%Y",  # 13/01/2026
-}
-
-def formatear_fecha_internacional(fecha, idioma="es"):
-    """Formatea fecha según el idioma"""
-    dias = {
-        "es": ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'],
-        "en": ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
-        "pt": ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'],
-    }
-    
-    dia_semana = dias[idioma][fecha.weekday()]
-    formato = FORMATOS_FECHA[idioma]
-    fecha_str = fecha.strftime(formato)
-    
-    return f"{dia_semana} {fecha_str}"

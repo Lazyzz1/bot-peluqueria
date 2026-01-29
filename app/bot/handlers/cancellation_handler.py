@@ -7,15 +7,17 @@ from datetime import datetime
 from app.bot.utils.formatters import formatear_item_lista
 from app.services.whatsapp_service import whatsapp_service
 from app.services.calendar_service import CalendarService
+from app.utils.calendar_utils import CalendarUtils
 from app.bot.states.state_manager import get_state, set_state
 
 try:
-    from app.core.database import cancelar_turno_db, obtener_turnos_por_telefono
+    from app.core.database import cancelar_turno_db, marcar_recordatorio_enviado, recordatorio_ya_enviado
     MONGODB_DISPONIBLE = True
 except ImportError:
     MONGODB_DISPONIBLE = False
     def cancelar_turno_db(*args, **kwargs): return False
-    def obtener_turnos_por_telefono(*args, **kwargs): return []
+    def marcar_recordatorio_enviado(*args, **kwargs): return False
+    def recordatorio_ya_enviado(*args, **kwargs): return False
 
 
 class CancellationHandler:
@@ -30,6 +32,7 @@ class CancellationHandler:
         """
         self.peluquerias = peluquerias_config
         self.calendar_service = CalendarService(peluquerias_config)
+        self.calendar_utils = CalendarUtils(peluquerias_config)
     
     def iniciar_cancelacion(self, numero_limpio, peluqueria_key, numero):
         """
@@ -268,7 +271,8 @@ class CancellationHandler:
     
     def _obtener_turnos_cliente(self, peluqueria_key, telefono):
         """
-        Obtiene los turnos de un cliente desde Google Calendar
+        Obtiene los turnos de un cliente
+        Usa calendar_utils que maneja MongoDB y Google Calendar
         
         Args:
             peluqueria_key: Identificador del cliente
@@ -277,43 +281,4 @@ class CancellationHandler:
         Returns:
             list: Lista de turnos del cliente
         """
-        try:
-            # Intentar obtener de MongoDB primero
-            if MONGODB_DISPONIBLE:
-                turnos_db = obtener_turnos_por_telefono(peluqueria_key, telefono)
-                if turnos_db:
-                    return turnos_db
-            
-            # Fallback a Google Calendar
-            config = self.peluquerias[peluqueria_key]
-            calendar_id = config["calendar_id"]
-            service = self.calendar_service.get_calendar_service(peluqueria_key)
-            
-            # Buscar eventos próximos
-            ahora = datetime.now()
-            eventos = service.events().list(
-                calendarId=calendar_id,
-                timeMin=ahora.isoformat(),
-                maxResults=10,
-                singleEvents=True,
-                orderBy='startTime'
-            ).execute()
-            
-            turnos = []
-            for evento in eventos.get('items', []):
-                descripcion = evento.get('description', '')
-                if telefono in descripcion:
-                    inicio_str = evento['start'].get('dateTime', evento['start'].get('date'))
-                    inicio = datetime.fromisoformat(inicio_str.replace('Z', '+00:00'))
-                    
-                    turnos.append({
-                        'id': evento['id'],
-                        'resumen': evento.get('summary', 'Turno'),
-                        'inicio': inicio
-                    })
-            
-            return turnos
-        
-        except Exception as e:
-            print(f"❌ Error al obtener turnos: {e}")
-            return []
+        return self.calendar_utils.obtener_turnos_cliente(peluqueria_key, telefono)

@@ -1,163 +1,149 @@
 """
-Webhook para recibir mensajes de WhatsApp (Twilio)
+Webhook de WhatsApp
+Recibe y procesa mensajes de WhatsApp vía Twilio
 """
-from flask import Blueprint, request, jsonify
-from app.bot.handlers.menu_handler import MenuHandler
-from app.bot.states.state_manager import get_state, set_state
-from app.core.config import PELUQUERIAS
-from app.services.whatsapp_service import whatsapp_service
 
-# Blueprint
+from flask import Blueprint, request, jsonify
+from app.bot.orchestrator import bot_orchestrator
+
+# Crear blueprint
 whatsapp_bp = Blueprint('whatsapp', __name__)
 
-# Handler del menú
-menu_handler = MenuHandler(PELUQUERIAS)
 
-
-@whatsapp_bp.route("/webhook", methods=["POST"])
+@whatsapp_bp.route('/webhook', methods=['POST'])
 def webhook_whatsapp():
     """
-    Recibe mensajes desde WhatsApp vía Twilio
-    
-    Expected format:
-    {
-        "From": "whatsapp:+5492974210130",
-        "Body": "hola",
-        "To": "whatsapp:+14155238886"
-    }
+    Webhook principal para recibir mensajes de WhatsApp
+    Procesa mensajes entrantes de Twilio
     """
     try:
-        # Obtener datos del mensaje
-        numero_origen = request.form.get("From", "")
-        mensaje = request.form.get("Body", "").strip().lower()
-        numero_destino = request.form.get("To", "")
+        # Obtener datos del request
+        data = request.form.to_dict() if request.form else request.get_json()
         
-        if not numero_origen or not mensaje:
-            return jsonify({"error": "Datos incompletos"}), 400
+        if not data:
+            print("⚠️ Request vacío recibido")
+            return "", 400
         
-        print(f"\n📱 Mensaje recibido de {numero_origen}: {mensaje}")
+        # Extraer información del mensaje
+        numero = data.get("From")  # whatsapp:+5492974210130
+        texto = data.get("Body", "").strip()
+        numero_destino = data.get("To")  # whatsapp:+14155238886
         
-        # Limpiar número
-        numero_limpio = numero_origen.replace("whatsapp:", "")
+        # Validar datos básicos
+        if not numero or not texto:
+            print(f"⚠️ Datos incompletos - From: {numero}, Body: {texto}")
+            return "", 400
         
-        # Determinar peluquería (por ahora usamos la primera)
-        # TODO: Implementar routing multi-cliente
-        peluqueria_key = list(PELUQUERIAS.keys())[0]
-        config = PELUQUERIAS[peluqueria_key]
+        # Log del mensaje recibido
+        print(f"\n{'='*60}")
+        print(f"📨 MENSAJE RECIBIDO")
+        print(f"{'='*60}")
+        print(f"De: {numero}")
+        print(f"A: {numero_destino}")
+        print(f"Mensaje: {texto}")
+        print(f"{'='*60}\n")
         
-        # Obtener estado actual
-        estado = get_state(numero_limpio) or {"paso": "menu"}
-        paso_actual = estado.get("paso", "menu")
+        # Detectar peluquería según número de Twilio
+        peluqueria_key = detectar_peluqueria(numero_destino)
         
-        print(f"📊 Estado actual: {paso_actual}")
-        
-        # Procesar comandos globales
-        if mensaje in ["menu", "hola", "hi", "inicio"]:
-            menu_handler.mostrar_menu(numero_origen, peluqueria_key)
-            
-            # Actualizar estado
-            estado["paso"] = "menu"
-            set_state(numero_limpio, estado)
-            
-            return jsonify({"status": "ok"}), 200
-        
-        # Procesar según el paso actual
-        if paso_actual == "menu":
-            # Usuario está en menú principal
-            nuevo_paso = menu_handler.procesar_opcion(
-                numero_origen,
-                mensaje,
-                peluqueria_key
-            )
-            
-            # Actualizar estado si cambió
-            if nuevo_paso != paso_actual:
-                estado["paso"] = nuevo_paso
-                set_state(numero_limpio, estado)
-        
-        elif paso_actual == "seleccionar_peluquero":
-            # Usuario está seleccionando peluquero
-            from app.bot.handlers.booking_handler import BookingHandler
-            
-            booking_handler = BookingHandler(PELUQUERIAS)
-            booking_handler.procesar_seleccion_peluquero(
-                numero_limpio,
-                mensaje,
-                peluqueria_key,
-                numero_origen
-            )
-        
-        elif paso_actual == "seleccionar_dia":
-            # Usuario está seleccionando día
-            from app.bot.handlers.booking_handler import BookingHandler
-            
-            booking_handler = BookingHandler(PELUQUERIAS)
-            booking_handler.procesar_seleccion_dia(
-                numero_limpio,
-                mensaje,
-                peluqueria_key,
-                numero_origen
-            )
-        
-        elif paso_actual == "seleccionar_hora":
-            # Usuario está seleccionando hora
-            from app.bot.handlers.booking_handler import BookingHandler
-            
-            booking_handler = BookingHandler(PELUQUERIAS)
-            booking_handler.procesar_seleccion_hora(
-                numero_limpio,
-                mensaje,
-                peluqueria_key,
-                numero_origen
-            )
-        
-        elif paso_actual == "ingresar_nombre":
-            # Usuario está ingresando su nombre
-            from app.bot.handlers.booking_handler import BookingHandler
-            
-            booking_handler = BookingHandler(PELUQUERIAS)
-            booking_handler.procesar_nombre(
-                numero_limpio,
-                mensaje,
-                peluqueria_key,
-                numero_origen
-            )
-        
-        elif paso_actual == "confirmar_cancelacion":
-            # Usuario está confirmando cancelación
-            from app.bot.handlers.cancellation_handler import CancellationHandler
-            
-            cancel_handler = CancellationHandler(PELUQUERIAS)
-            cancel_handler.procesar_confirmacion(
-                numero_limpio,
-                mensaje,
-                peluqueria_key,
-                numero_origen
-            )
-        
-        else:
-            # Paso desconocido, volver al menú
+        if not peluqueria_key:
+            print(f"❌ No se pudo identificar la peluquería para {numero_destino}")
+            # Enviar mensaje de error al usuario
+            from app.services.whatsapp_service import whatsapp_service
             whatsapp_service.enviar_mensaje(
-                "❌ Estado inválido. Escribí *menu* para empezar de nuevo.",
-                numero_origen
+                "Lo siento, hubo un error de configuración. Por favor contacta con soporte.",
+                numero
             )
-            
-            estado["paso"] = "menu"
-            set_state(numero_limpio, estado)
+            return "", 404
         
-        return jsonify({"status": "ok"}), 200
+        print(f"✅ Peluquería identificada: {peluqueria_key}")
+        
+        # Procesar mensaje con el orquestrador
+        bot_orchestrator.procesar_mensaje(numero, texto, peluqueria_key)
+        
+        print(f"✅ Mensaje procesado correctamente\n")
+        return "", 200
     
-    except Exception as e:
-        print(f"❌ Error en webhook: {e}")
+    except KeyError as e:
+        print(f"❌ Error: Falta campo requerido - {e}")
         import traceback
         traceback.print_exc()
+        return "", 400
+    
+    except Exception as e:
+        print(f"\n{'='*60}")
+        print(f"❌ ERROR EN WEBHOOK")
+        print(f"{'='*60}")
+        print(f"Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        print(f"{'='*60}\n")
+        return "", 500
+
+
+@whatsapp_bp.route('/webhook', methods=['GET'])
+def webhook_verify():
+    """
+    Verificación del webhook (para algunos servicios que lo requieren)
+    """
+    return jsonify({"status": "ok", "message": "Webhook activo"}), 200
+
+
+def detectar_peluqueria(numero_twilio):
+    """
+    Detecta qué peluquería según el número de Twilio que recibió el mensaje
+    Sistema multi-tenant para SaaS
+    
+    Args:
+        numero_twilio: Número de Twilio (ej: whatsapp:+14155238886)
+    
+    Returns:
+        str: Key de la peluquería o None si no se encuentra
+    """
+    from app.bot.orchestrator import bot_orchestrator
+    
+    # Limpiar el número
+    numero_limpio = numero_twilio.replace("whatsapp:", "").strip()
+    
+    print(f"🔍 Buscando peluquería para número: {numero_limpio}")
+    
+    # Buscar en configuración
+    for key, config in bot_orchestrator.peluquerias.items():
+        numero_config = config.get("numero_twilio", "").strip()
         
-        return jsonify({"error": str(e)}), 500
+        if numero_config and numero_config == numero_limpio:
+            print(f"✅ Match encontrado: {key} - {config.get('nombre')}")
+            return key
+    
+    # Si no se encuentra, mostrar números registrados para debug
+    print(f"❌ No se encontró peluquería para: {numero_limpio}")
+    print(f"📋 Números registrados:")
+    for key, config in bot_orchestrator.peluquerias.items():
+        numero_reg = config.get("numero_twilio", "NO CONFIGURADO")
+        print(f"   • {key}: {numero_reg}")
+    
+    return None
 
 
-@whatsapp_bp.route("/webhook", methods=["GET"])
-def verificar_webhook():
+@whatsapp_bp.route('/webhook/status', methods=['POST'])
+def webhook_status():
     """
-    Verificación del webhook (usado por algunos proveedores)
+    Recibe actualizaciones de estado de mensajes de Twilio
+    (Opcional - para tracking de mensajes enviados/entregados/leídos)
     """
-    return jsonify({"status": "ok"}), 200
+    try:
+        data = request.form.to_dict() if request.form else request.get_json()
+        
+        message_sid = data.get("MessageSid")
+        message_status = data.get("MessageStatus")
+        
+        print(f"📊 Estado de mensaje {message_sid}: {message_status}")
+        
+        # Aquí podrías guardar el estado en DB si lo necesitas
+        # Por ejemplo: actualizar_estado_mensaje(message_sid, message_status)
+        
+        return "", 200
+    
+    except Exception as e:
+        print(f"❌ Error en webhook de status: {e}")
+        return "", 500

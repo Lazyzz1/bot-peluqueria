@@ -2,7 +2,7 @@ from flask import Flask, jsonify, request
 from google.auth.transport.requests import Request
 import json
 from datetime import datetime, timedelta
-from time_utils import ahora_local
+from app.utils.time_utils import ahora_local
 import pytz
 import os
 import sys
@@ -16,9 +16,9 @@ import base64
 from threading import Lock
 from health_check import ejecutar_health_check
 from zoneinfo import available_timezones
-from time_utils import crear_datetime_local
+from app.utils.time_utils import crear_datetime_local
 from state_manager import get_state, set_state
-from translations import t
+from app.utils.translations import t
 try:
     from app.core.database import (
         guardar_turno,
