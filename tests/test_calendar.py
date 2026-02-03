@@ -1,7 +1,6 @@
 
 """
 Verifica que la conexión con Google Calendar funcione
-Uso: python test_calendar.py [peluqueria_key]
 """
 
 import sys
