@@ -297,6 +297,199 @@ class PaymentService:
             print(f"❌ Error verificando pago: {e}")
             return None
     
+    # ==================== ONBOARDING (SETUP DEL BOT) ====================
+
+    def crear_checkout_onboarding_lemonsqueezy(self, cliente_id: str, email: str, nombre: str, nombre_negocio: str) -> dict | None:
+        """
+        Crea un checkout de LemonSqueezy para el pago inicial de setup del bot.
+        A diferencia de crear_checkout_lemonsqueezy(), este es para CONTRATACIÓN,
+        no para turnos individuales.
+
+        Args:
+            cliente_id: ID del cliente guardado en MongoDB
+            email: Email del dueño del negocio
+            nombre: Nombre completo del dueño
+            nombre_negocio: Nombre de la peluquería
+
+        Returns:
+            dict: {"url": str, "checkout_id": str, "provider": str} o None
+        """
+        if not self.lemonsqueezy_api_key:
+            print("⚠️ LemonSqueezy no configurado")
+            return None
+
+        try:
+            url = "https://api.lemonsqueezy.com/v1/checkouts"
+
+            headers = {
+                "Accept": "application/vnd.api+json",
+                "Content-Type": "application/vnd.api+json",
+                "Authorization": f"Bearer {self.lemonsqueezy_api_key}",
+            }
+
+            payload = {
+                "data": {
+                    "type": "checkouts",
+                    "attributes": {
+                        "checkout_data": {
+                            "email": email,
+                            "name": nombre,
+                            "custom": {
+                                "cliente_id": cliente_id,
+                                "nombre_negocio": nombre_negocio,
+                                "tipo": "setup_bot",   # Para diferenciarlo en el webhook
+                            },
+                        },
+                        "product_options": {
+                            "name": f"TurnosBot Setup - {nombre_negocio}",
+                            "description": "Configuración completa del bot + primer mes incluido",
+                            "redirect_url": f"{self.app_url}/gracias?plan=internacional",
+                        },
+                        "checkout_options": {
+                            "button_color": "#10b981"
+                        },
+                    },
+                    "relationships": {
+                        "store": {
+                            "data": {
+                                "type": "stores",
+                                "id": self.lemonsqueezy_store_id,
+                            }
+                        },
+                        "variant": {
+                            "data": {
+                                "type": "variants",
+                                # Usá el variant_id de tu producto de $199 USD en LemonSqueezy
+                                "id": os.getenv("LEMONSQUEEZY_SETUP_VARIANT_ID",
+                                                os.getenv("LEMONSQUEEZY_DEFAULT_VARIANT_ID", "123456")),
+                            }
+                        },
+                    },
+                }
+            }
+
+            response = requests.post(url, json=payload, headers=headers)
+
+            if response.status_code == 201:
+                data = response.json()
+                checkout_url = data["data"]["attributes"]["url"]
+                checkout_id = data["data"]["id"]
+                print(f"✅ Checkout onboarding LemonSqueezy creado: {checkout_id}")
+                return {
+                    "url": checkout_url,
+                    "checkout_id": checkout_id,
+                    "provider": "lemonsqueezy",
+                }
+            else:
+                print(f"❌ Error checkout onboarding LemonSqueezy: {response.text}")
+                return None
+
+        except Exception as e:
+            print(f"❌ Error en crear_checkout_onboarding_lemonsqueezy: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
+    def crear_preferencia_onboarding_mercadopago(self, cliente_id: str, email: str, nombre: str, nombre_negocio: str) -> dict | None:
+        """
+        Crea una preferencia de MercadoPago para el pago inicial de setup del bot.
+        A diferencia de crear_preferencia_mercadopago(), este es para CONTRATACIÓN,
+        no para turnos individuales.
+
+        Args:
+            cliente_id: ID del cliente guardado en MongoDB
+            email: Email del dueño del negocio
+            nombre: Nombre completo del dueño
+            nombre_negocio: Nombre de la peluquería
+
+        Returns:
+            dict: {"url": str, "preference_id": str, "provider": str} o None
+        """
+        if not self.mercadopago_access_token:
+            print("⚠️ MercadoPago no configurado")
+            return None
+
+        try:
+            url = "https://api.mercadopago.com/checkout/preferences"
+
+            headers = {
+                "Authorization": f"Bearer {self.mercadopago_access_token}",
+                "Content-Type": "application/json",
+            }
+
+            payload = {
+                "items": [
+                    {
+                        "title": f"TurnosBot Setup - {nombre_negocio}",
+                        "description": "Configuración completa del bot + primer mes incluido",
+                        "quantity": 1,
+                        "currency_id": "ARS",
+                        "unit_price": 200000.0,   # $200.000 ARS - Setup único
+                    }
+                ],
+                "payer": {
+                    "name": nombre,
+                    "email": email,
+                },
+                "back_urls": {
+                    "success": f"{self.app_url}/gracias?plan=argentina",
+                    "failure": f"{self.app_url}/pago-cancelado",
+                    "pending": f"{self.app_url}/pago-pendiente",
+                },
+                "auto_return": "approved",
+                "notification_url": f"{self.app_url}/api/webhooks/mercadopago",
+                "external_reference": cliente_id,  # Clave: lo usamos en el webhook para identificar al cliente
+                "metadata": {
+                    "cliente_id": cliente_id,
+                    "nombre_negocio": nombre_negocio,
+                    "tipo": "setup_bot",   # Para diferenciarlo de pagos de turnos en el webhook
+                },
+            }
+
+            response = requests.post(url, json=payload, headers=headers)
+
+            if response.status_code == 201:
+                data = response.json()
+                init_point = data["init_point"]
+                preference_id = data["id"]
+                print(f"✅ Preferencia onboarding MercadoPago creada: {preference_id}")
+                return {
+                    "url": init_point,
+                    "preference_id": preference_id,
+                    "provider": "mercadopago",
+                }
+            else:
+                print(f"❌ Error preferencia onboarding MercadoPago: {response.text}")
+                return None
+
+        except Exception as e:
+            print(f"❌ Error en crear_preferencia_onboarding_mercadopago: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
+    def crear_pago_onboarding(self, cliente_id: str, email: str, nombre: str, nombre_negocio: str, plan: str) -> dict | None:
+        """
+        Método unificado: elige automáticamente MP o LemonSqueezy según el plan.
+
+        Args:
+            cliente_id: ID del cliente en MongoDB
+            email: Email del dueño
+            nombre: Nombre completo
+            nombre_negocio: Nombre de la peluquería
+            plan: "argentina" o "internacional"
+
+        Returns:
+            dict: {"url": str, "provider": str, ...} o None
+        """
+        if plan == "argentina":
+            return self.crear_preferencia_onboarding_mercadopago(cliente_id, email, nombre, nombre_negocio)
+        elif plan == "internacional":
+            return self.crear_checkout_onboarding_lemonsqueezy(cliente_id, email, nombre, nombre_negocio)
+        else:
+            print(f"❌ Plan desconocido: {plan}")
+            return None
+
     # ==================== REEMBOLSOS ====================
     
     def crear_reembolso_mercadopago(self, payment_id, monto=None):

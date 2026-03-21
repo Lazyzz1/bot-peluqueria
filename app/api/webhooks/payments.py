@@ -83,7 +83,12 @@ def procesar_pago_lemonsqueezy(data):
         
         if status == 'paid':
             print(f"✅ Pago LemonSqueezy confirmado: {order_id}")
-            
+
+            # Si es pago de setup del bot, no continuar al flujo de turnos
+            if metadata.get("tipo") == "setup_bot":
+                procesar_onboarding_pagado(metadata, order_id, "lemonsqueezy", total)
+                return
+
             # Crear el turno en Google Calendar
             turno_info = {
                 "peluqueria_key": metadata.get('peluqueria_key'),
@@ -183,9 +188,15 @@ def procesar_pago_mercadopago(payment_info):
         # Solo procesar pagos aprobados
         if status == 'approved':
             print(f"✅ Pago MercadoPago aprobado: {payment_id}")
-            
+
             # Extraer metadata
             metadata = payment_info.get('metadata', {})
+
+            # Si es pago de setup del bot, no continuar al flujo de turnos
+            if metadata.get("tipo") == "setup_bot":
+                procesar_onboarding_pagado(metadata, payment_id, "mercadopago",
+                                           payment_info.get("transaction_amount"))
+                return
             
             turno_info = {
                 "peluqueria_key": metadata.get('peluqueria_key'),
@@ -296,6 +307,62 @@ def confirmar_turno_con_pago(turno_info):
         import traceback
         traceback.print_exc()
         return False
+
+
+# ==================== ONBOARDING (SETUP DEL BOT) ====================
+
+def procesar_onboarding_pagado(metadata, payment_id, provider, monto):
+    """
+    Se ejecuta cuando alguien paga el setup del bot (tipo: "setup_bot").
+    Actualiza el estado en MongoDB y te avisa por WhatsApp.
+    """
+    try:
+        from bson import ObjectId
+        from app.core.database import clientes_collection
+        import os
+
+        cliente_id = metadata.get("cliente_id")
+        if not cliente_id:
+            print("⚠️ Pago de onboarding sin cliente_id en metadata")
+            return
+
+        # Marcar como pagado en MongoDB
+        clientes_collection.update_one(
+            {"_id": ObjectId(cliente_id)},
+            {"$set": {
+                "estado_pago":      "pagado",
+                "payment_id":       payment_id,
+                "payment_provider": provider,
+                "monto_pagado":     monto,
+                "actualizado_en":   datetime.utcnow(),
+            }}
+        )
+        print(f"✅ Cliente {cliente_id} marcado como pagado ({provider})")
+
+        # Obtener datos del cliente para el mensaje
+        cliente = clientes_collection.find_one({"_id": ObjectId(cliente_id)})
+        if not cliente:
+            return
+
+        # Avisarte por WhatsApp cuando alguien paga
+        tu_numero = os.getenv("ADMIN_WHATSAPP", "")  # ej: +5492974924147 en tu .env
+        if tu_numero:
+            mensaje = (
+                f"🎉 *¡Nuevo cliente pagó el setup!*\n\n"
+                f"👤 {cliente['nombre']} {cliente['apellido']}\n"
+                f"🏪 {cliente['nombre_negocio']}\n"
+                f"📍 {cliente['ubicacion']}\n"
+                f"📱 {cliente['telefono']}\n"
+                f"✉️ {cliente['email']}\n"
+                f"💰 Plan: {cliente['plan'].upper()} - ${monto}\n\n"
+                f"Ya podés empezar a configurar el bot 🚀"
+            )
+            whatsapp_service.enviar_mensaje(mensaje, f"whatsapp:{tu_numero}")
+
+    except Exception as e:
+        print(f"❌ Error en procesar_onboarding_pagado: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 # ==================== PÁGINA DE ÉXITO/FALLO ====================

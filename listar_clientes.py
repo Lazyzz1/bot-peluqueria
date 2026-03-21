@@ -1,7 +1,6 @@
 
 """
 Lista todos los clientes configurados
-Uso: python listar_clientes.py
 """
 
 import json

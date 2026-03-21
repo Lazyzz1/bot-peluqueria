@@ -35,7 +35,7 @@ def create_app():
 
 def register_blueprints(app):
     """Registra todos los blueprints de la aplicación"""
-    
+
     # Webhook de WhatsApp
     from app.api.webhooks.whatsapp import whatsapp_bp
     app.register_blueprint(whatsapp_bp, url_prefix='/api')
@@ -48,6 +48,8 @@ def register_blueprints(app):
     from app.api.routes.health import health_bp
     app.register_blueprint(health_bp)
     
+    from app.api.routes.payments import payments_routes_bp
+    app.register_blueprint(payments_routes_bp, url_prefix='/api')    
     # Rutas estáticas (landing page)
     try:
         from app.api.routes.static import static_bp
@@ -76,3 +78,4 @@ def register_error_handlers(app):
         import traceback
         traceback.print_exc()
         return {"error": "An unexpected error occurred"}, 500
+
