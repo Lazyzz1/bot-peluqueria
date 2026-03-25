@@ -341,8 +341,8 @@ class PaymentService:
                             },
                         },
                         "product_options": {
-                            "name": f"TurnosBot Setup - {nombre_negocio}",
-                            "description": "Configuración completa del bot + primer mes incluido",
+                            "name": f"TurnosBot · 7 días gratis · {nombre_negocio}",
+                            "description": "7 días gratis, luego pago mensual",
                             "redirect_url": f"{self.app_url}/gracias?plan=internacional",
                         },
                         "checkout_options": {
@@ -420,11 +420,11 @@ class PaymentService:
             payload = {
                 "items": [
                     {
-                        "title": f"TurnosBot Setup - {nombre_negocio}",
-                        "description": "Configuración completa del bot + primer mes incluido",
+                        "title": f"TurnosBot · 7 días gratis · {nombre_negocio}",
+                        "description": "7 días gratis, luego pago mensual",
                         "quantity": 1,
                         "currency_id": "ARS",
-                        "unit_price": 200000.0,   # $200.000 ARS - Setup único
+                        "unit_price": 24500.0,   # $24.500 ARS/mes · 7 días gratis
                     }
                 ],
                 "payer": {
