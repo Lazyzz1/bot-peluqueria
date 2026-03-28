@@ -390,80 +390,53 @@ class PaymentService:
             traceback.print_exc()
             return None
 
-    def crear_preferencia_onboarding_mercadopago(self, cliente_id: str, email: str, nombre: str, nombre_negocio: str) -> dict | None:
+    def crear_suscripcion_onboarding_mercadopago(self, cliente_id: str, email: str, nombre: str, nombre_negocio: str) -> dict | None:
         """
-        Crea una preferencia de MercadoPago para el pago inicial de setup del bot.
-        A diferencia de crear_preferencia_mercadopago(), este es para CONTRATACIÓN,
-        no para turnos individuales.
+        Crea una suscripcion mensual en MercadoPago con 7 dias gratis.
+        Usa el plan pre-creado con MERCADOPAGO_PLAN_ID.
 
-        Args:
-            cliente_id: ID del cliente guardado en MongoDB
-            email: Email del dueño del negocio
-            nombre: Nombre completo del dueño
-            nombre_negocio: Nombre de la peluquería
-
-        Returns:
-            dict: {"url": str, "preference_id": str, "provider": str} o None
+        Antes de usar esto:
+        1. Ejecuta scripts/crear_plan_mp.py UNA SOLA VEZ
+        2. Guarda el plan_id resultante en .env como MERCADOPAGO_PLAN_ID
         """
         if not self.mercadopago_access_token:
-            print("⚠️ MercadoPago no configurado")
+            print("Advertencia: MercadoPago no configurado")
+            return None
+
+        plan_id = os.getenv("MERCADOPAGO_PLAN_ID")
+        if not plan_id:
+            print("Error: MERCADOPAGO_PLAN_ID no configurado en .env")
+            print("   Ejecuta scripts/crear_plan_mp.py para crear el plan")
             return None
 
         try:
-            url = "https://api.mercadopago.com/checkout/preferences"
-
+            url = "https://api.mercadopago.com/preapproval"
             headers = {
                 "Authorization": f"Bearer {self.mercadopago_access_token}",
                 "Content-Type": "application/json",
             }
-
             payload = {
-                "items": [
-                    {
-                        "title": f"TurnosBot · 7 días gratis · {nombre_negocio}",
-                        "description": "7 días gratis, luego pago mensual",
-                        "quantity": 1,
-                        "currency_id": "ARS",
-                        "unit_price": 24500.0,   # $24.500 ARS/mes · 7 días gratis
-                    }
-                ],
-                "payer": {
-                    "name": nombre,
-                    "email": email,
-                },
-                "back_urls": {
-                    "success": f"{self.app_url}/gracias?plan=argentina",
-                    "failure": f"{self.app_url}/pago-cancelado",
-                    "pending": f"{self.app_url}/pago-pendiente",
-                },
-                "auto_return": "approved",
-                "notification_url": f"{self.app_url}/api/webhooks/mercadopago",
-                "external_reference": cliente_id,  # Clave: lo usamos en el webhook para identificar al cliente
-                "metadata": {
-                    "cliente_id": cliente_id,
-                    "nombre_negocio": nombre_negocio,
-                    "tipo": "setup_bot",   # Para diferenciarlo de pagos de turnos en el webhook
-                },
+                "preapproval_plan_id": plan_id,
+                "reason": f"TurnosBot - {nombre_negocio}",
+                "payer_email": email,
+                "external_reference": cliente_id,
+                "back_url": f"{self.app_url}/gracias?plan=argentina",
+                "status": "pending",
             }
-
             response = requests.post(url, json=payload, headers=headers)
-
             if response.status_code == 201:
                 data = response.json()
-                init_point = data["init_point"]
-                preference_id = data["id"]
-                print(f"✅ Preferencia onboarding MercadoPago creada: {preference_id}")
+                print(f"Suscripcion MercadoPago creada: {data['id']}")
                 return {
-                    "url": init_point,
-                    "preference_id": preference_id,
+                    "url": data["init_point"],
+                    "preference_id": data["id"],
                     "provider": "mercadopago",
                 }
             else:
-                print(f"❌ Error preferencia onboarding MercadoPago: {response.text}")
+                print(f"Error suscripcion MercadoPago: {response.text}")
                 return None
-
         except Exception as e:
-            print(f"❌ Error en crear_preferencia_onboarding_mercadopago: {e}")
+            print(f"Error en crear_suscripcion_onboarding_mercadopago: {e}")
             import traceback
             traceback.print_exc()
             return None
@@ -483,7 +456,7 @@ class PaymentService:
             dict: {"url": str, "provider": str, ...} o None
         """
         if plan == "argentina":
-            return self.crear_preferencia_onboarding_mercadopago(cliente_id, email, nombre, nombre_negocio)
+            return self.crear_suscripcion_onboarding_mercadopago(cliente_id, email, nombre, nombre_negocio)
         elif plan == "internacional":
             return self.crear_checkout_onboarding_lemonsqueezy(cliente_id, email, nombre, nombre_negocio)
         else:

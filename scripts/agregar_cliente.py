@@ -255,7 +255,7 @@ def agregar_cliente():
         "nombre": nombre,
         "numero_twilio": numero_twilio,
         "calendar_id": calendar_id,
-        "token_file": "tokens/master_token.json",
+        "token_file": f"tokens/{key}_token.json",
         "timezone": timezone,
         "idioma": "es",
         "moneda": moneda,

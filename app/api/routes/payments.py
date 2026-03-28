@@ -41,6 +41,17 @@ def crear_checkout():
         if data["plan"] not in ["argentina", "internacional"]:
             return jsonify({"error": "Plan inválido"}), 400
 
+        # Verificar si el teléfono ya usó un trial antes
+        telefono = data["telefono"]
+        trial_previo = clientes_collection.find_one({
+            "telefono": telefono,
+            "trial_inicio": {"$exists": True}
+        })
+        if trial_previo:
+            return jsonify({
+                "error": "Este número de WhatsApp ya utilizó la prueba gratuita. Para contratar el servicio escribinos directamente al +5492974924147"
+            }), 409
+
         # Guardar cliente en MongoDB
         cliente_doc = {
             "nombre":              data["nombre"],

@@ -1,0 +1,1 @@
+# Validar datos de peluqueros con Pydantic en algún endpoint futuro.validar datos de peluqueros con Pydantic en algún endpoint futuro.

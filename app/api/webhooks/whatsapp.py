@@ -58,6 +58,15 @@ def webhook_whatsapp():
         
         print(f"✅ Peluquería identificada: {peluqueria_key}")
         
+        # Verificar suscripción activa
+        from app.utils.verificar_suscripcion import verificar_suscripcion
+        suscripcion = verificar_suscripcion(peluqueria_key)
+
+        if not suscripcion["activa"]:
+            print(f"⛔ Bot bloqueado para {peluqueria_key}: {suscripcion['motivo']}")
+            # No respondemos nada — el dueño ya fue avisado cuando venció el trial
+            return "", 200
+
         # Procesar mensaje con el orquestrador
         bot_orchestrator.procesar_mensaje(numero, texto, peluqueria_key)
         
