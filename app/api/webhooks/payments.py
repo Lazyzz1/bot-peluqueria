@@ -140,6 +140,12 @@ def procesar_reembolso_lemonsqueezy(data):
 
 
 # ==================== MERCADOPAGO WEBHOOK ====================
+# IMPORTANTE: En el panel de MercadoPago registrá estas notificaciones:
+# URL: https://bot-peluqueria-production.up.railway.app/api/webhooks/mercadopago
+# Eventos: payment, preapproval, subscription_authorized_payment
+# Panel: https://www.mercadopago.com.ar/developers/panel/webhooks
+
+# ==================== MERCADOPAGO WEBHOOK ====================
 
 @payments_bp.route('/webhooks/mercadopago', methods=['POST'])
 def webhook_mercadopago():
@@ -156,15 +162,25 @@ def webhook_mercadopago():
         print(f"📨 Notificación MercadoPago: {tipo}")
         
         if tipo == 'payment':
+            # Pago de turno individual
             payment_id = data.get('data', {}).get('id')
-            
             if payment_id:
-                # Obtener información del pago
                 payment_info = payment_service.verificar_webhook_mercadopago(payment_id)
-                
                 if payment_info:
                     procesar_pago_mercadopago(payment_info)
-        
+
+        elif tipo == 'preapproval':
+            # Suscripcion creada, actualizada o cancelada
+            preapproval_id = data.get('data', {}).get('id')
+            if preapproval_id:
+                procesar_evento_suscripcion_mp(preapproval_id)
+
+        elif tipo == 'subscription_authorized_payment':
+            # Cobro mensual ejecutado automaticamente
+            invoice_id = data.get('data', {}).get('id')
+            if invoice_id:
+                procesar_cobro_mensual_mp(invoice_id)
+
         return jsonify({"status": "ok"}), 200
     
     except Exception as e:
@@ -307,6 +323,143 @@ def confirmar_turno_con_pago(turno_info):
         import traceback
         traceback.print_exc()
         return False
+
+
+# ==================== SUSCRIPCIONES MERCADOPAGO ====================
+
+def procesar_evento_suscripcion_mp(preapproval_id: str):
+    """
+    Procesa eventos de suscripcion de MercadoPago (preapproval).
+    Se ejecuta cuando una suscripcion es creada, activada, pausada o cancelada.
+    """
+    try:
+        import requests as req
+        import os
+        from bson import ObjectId
+        from app.core.database import clientes_collection
+
+        access_token = os.getenv("MERCADOPAGO_ACCESS_TOKEN")
+        headers = {"Authorization": f"Bearer {access_token}"}
+
+        # Consultar estado de la suscripcion en MP
+        url = f"https://api.mercadopago.com/preapproval/{preapproval_id}"
+        res = req.get(url, headers=headers, timeout=10)
+        if not res.ok:
+            print(f"Error consultando preapproval {preapproval_id}: {res.text}")
+            return
+
+        data = res.json()
+        estado = data.get("status")           # authorized, paused, cancelled
+        cliente_id = data.get("external_reference")
+        email = data.get("payer_email", "")
+
+        print(f"Suscripcion MP {preapproval_id}: estado={estado} cliente={cliente_id}")
+
+        if not cliente_id:
+            print("Sin external_reference en preapproval")
+            return
+
+        ahora = datetime.utcnow()
+
+        if estado == "authorized":
+            # Suscripcion activa — marcar en MongoDB
+            clientes_collection.update_one(
+                {"_id": ObjectId(cliente_id)},
+                {"$set": {
+                    "estado_pago":        "pagado",
+                    "suscripcion_activa": True,
+                    "preapproval_id":     preapproval_id,
+                    "trial_inicio":       ahora,
+                    "gracia_inicio":      None,
+                    "actualizado_en":     ahora,
+                }}
+            )
+            print(f"Cliente {cliente_id} suscripcion activada")
+
+        elif estado in ("paused", "cancelled"):
+            # Suscripcion pausada o cancelada
+            clientes_collection.update_one(
+                {"_id": ObjectId(cliente_id)},
+                {"$set": {
+                    "estado_pago":        "cancelado",
+                    "suscripcion_activa": False,
+                    "actualizado_en":     ahora,
+                }}
+            )
+            print(f"Cliente {cliente_id} suscripcion {estado}")
+
+            # Avisar al admin
+            import os as _os
+            admin = _os.getenv("ADMIN_WHATSAPP", "")
+            cliente = clientes_collection.find_one({"_id": ObjectId(cliente_id)})
+            if admin and cliente:
+                whatsapp_service.enviar_mensaje(
+                    f"⚠️ *Suscripcion {estado.upper()}*\n\n"
+                    f"Cliente: {cliente.get('nombre')} {cliente.get('apellido')}\n"
+                    f"Negocio: {cliente.get('nombre_negocio')}\n"
+                    f"Email: {email}",
+                    f"whatsapp:{admin}"
+                )
+
+    except Exception as e:
+        print(f"Error en procesar_evento_suscripcion_mp: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+def procesar_cobro_mensual_mp(invoice_id: str):
+    """
+    Procesa un cobro mensual automatico de MercadoPago (subscription_authorized_payment).
+    Se ejecuta cada vez que MP debita la suscripcion mensual exitosamente.
+    """
+    try:
+        import requests as req
+        import os
+        from bson import ObjectId
+        from app.core.database import clientes_collection
+
+        access_token = os.getenv("MERCADOPAGO_ACCESS_TOKEN")
+        headers = {"Authorization": f"Bearer {access_token}"}
+
+        # Consultar el invoice
+        url = f"https://api.mercadopago.com/authorized_payments/{invoice_id}"
+        res = req.get(url, headers=headers, timeout=10)
+        if not res.ok:
+            print(f"Error consultando invoice {invoice_id}: {res.text}")
+            return
+
+        data = res.json()
+        estado = data.get("status")           # authorized, cancelled
+        preapproval_id = data.get("preapproval_id")
+        monto = data.get("transaction_amount")
+
+        print(f"Cobro mensual MP {invoice_id}: estado={estado} monto={monto}")
+
+        if estado != "authorized" or not preapproval_id:
+            return
+
+        # Buscar cliente por preapproval_id
+        ahora = datetime.utcnow()
+        resultado = clientes_collection.update_one(
+            {"preapproval_id": preapproval_id},
+            {"$set": {
+                "estado_pago":        "pagado",
+                "suscripcion_activa": True,
+                "ultimo_cobro":       ahora,
+                "gracia_inicio":      None,   # resetear gracia si estaba en curso
+                "actualizado_en":     ahora,
+            }}
+        )
+
+        if resultado.modified_count > 0:
+            print(f"Cobro mensual registrado para preapproval {preapproval_id}")
+        else:
+            print(f"No se encontro cliente con preapproval_id {preapproval_id}")
+
+    except Exception as e:
+        print(f"Error en procesar_cobro_mensual_mp: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 # ==================== ONBOARDING (SETUP DEL BOT) ====================
