@@ -67,12 +67,22 @@ class CalendarService:
             # Cargar credenciales
             creds = Credentials.from_authorized_user_file(token_path, SCOPES)
             
-            # Refrescar si es necesario
+            # Refrescar si es necesario e invalidar cache viejo
             if creds and creds.expired and creds.refresh_token:
+                print(f"Renovando token de Calendar para {peluqueria_key}...")
                 creds.refresh(Request())
                 # Guardar credenciales actualizadas
                 with open(token_path, 'w') as token:
                     token.write(creds.to_json())
+                # Invalidar cache para forzar nuevo servicio con creds frescas
+                self.services_cache.pop(peluqueria_key, None)
+                print(f"Token renovado y cache invalidado para {peluqueria_key}")
+            
+            if not creds or not creds.valid:
+                raise ValueError(
+                    f"Token invalido para {peluqueria_key}. "
+                    f"Necesitas reautorizar Google Calendar."
+                )
             
             # Crear servicio
             service = build('calendar', 'v3', credentials=creds)

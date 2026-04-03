@@ -480,7 +480,12 @@ class BookingHandler:
                     numero_limpio
                 )
         else:
-            whatsapp_service.enviar_mensaje("❌ Error al crear la reserva.\n\nEscribí *menu*", numero)
+            whatsapp_service.enviar_mensaje(
+                "❌ Hubo un error al confirmar tu turno.\n\n"
+                "Por favor contactá directamente al negocio o "
+                "escribí *menu* para intentar de nuevo.",
+                numero
+            )
 
         estado_usuario["paso"] = "menu"
         set_state(numero_limpio, estado_usuario)

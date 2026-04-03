@@ -121,10 +121,36 @@ def check_services():
     except ImportError:
         services_status["whatsapp"] = "not_available"
     
-    # Calendar Service
+    # Calendar Service - verifica que el token sea valido
     try:
         from app.services.calendar_service import CalendarService
-        services_status["calendar"] = "ok"
+        import json, os
+        from google.oauth2.credentials import Credentials
+
+        token_issues = []
+        tokens_dir = "tokens"
+        if os.path.exists(tokens_dir):
+            for token_file in os.listdir(tokens_dir):
+                if not token_file.endswith("_token.json"):
+                    continue
+                token_path = os.path.join(tokens_dir, token_file)
+                try:
+                    creds = Credentials.from_authorized_user_file(
+                        token_path,
+                        ["https://www.googleapis.com/auth/calendar"]
+                    )
+                    if not creds.valid and not creds.refresh_token:
+                        token_issues.append(f"{token_file}: sin refresh_token")
+                    elif creds.expired and creds.refresh_token:
+                        token_issues.append(f"{token_file}: vencido (se renueva al usar)")
+                except Exception as e:
+                    token_issues.append(f"{token_file}: {str(e)}")
+
+        if token_issues:
+            services_status["calendar"] = "warning"
+            services_status["calendar_detail"] = token_issues
+        else:
+            services_status["calendar"] = "ok"
     except ImportError:
         services_status["calendar"] = "not_available"
     
