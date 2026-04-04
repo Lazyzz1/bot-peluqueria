@@ -119,55 +119,84 @@ class CalendarService:
             horario_dia = horarios.get(dia_semana)
             if not horario_dia:
                 return []
-            
-            hora_inicio = horario_dia.get("inicio", "09:00")
-            hora_fin = horario_dia.get("fin", "18:00")
-            
-            # Crear datetime con timezone local
-            inicio_dt = datetime.combine(dia, datetime.strptime(hora_inicio, "%H:%M").time())
-            fin_dt = datetime.combine(dia, datetime.strptime(hora_fin, "%H:%M").time())
-            
-            # Obtener eventos del calendario
+
+            # Normalizar formato de horarios — soporta 3 formatos del clientes.json:
+            # 1. Lista simple:   ["09:00", "18:00"]
+            # 2. Horario partido: [["09:00", "13:00"], ["17:00", "20:00"]]
+            # 3. Diccionario (legacy): {"inicio": "09:00", "fin": "18:00"}
+            def parsear_franjas(horario):
+                """Devuelve lista de tuplas (hora_inicio_str, hora_fin_str)"""
+                if isinstance(horario, dict):
+                    return [(horario.get("inicio", "09:00"), horario.get("fin", "18:00"))]
+                if isinstance(horario, list):
+                    if len(horario) == 0:
+                        return []
+                    # Horario partido: [["09:00", "13:00"], ["17:00", "20:00"]]
+                    if isinstance(horario[0], list):
+                        return [(h[0], h[1]) for h in horario if len(h) >= 2]
+                    # Lista simple: ["09:00", "18:00"]
+                    if len(horario) >= 2 and isinstance(horario[0], str):
+                        return [(horario[0], horario[1])]
+                return [("09:00", "18:00")]
+
+            franjas = parsear_franjas(horario_dia)
+            if not franjas:
+                return []
+
+            # Obtener todos los eventos del día completo (cubre todas las franjas)
+            dia_inicio_dt = datetime.combine(dia, datetime.strptime("00:00", "%H:%M").time())
+            dia_fin_dt = datetime.combine(dia, datetime.strptime("23:59", "%H:%M").time())
+
             eventos = service.events().list(
                 calendarId=calendar_id,
-                timeMin=inicio_dt.isoformat(),
-                timeMax=fin_dt.isoformat(),
+                timeMin=dia_inicio_dt.isoformat(),
+                timeMax=dia_fin_dt.isoformat(),
                 timeZone=timezone,
                 singleEvents=True,
                 orderBy='startTime'
             ).execute()
-            
+
             eventos_ocupados = eventos.get('items', [])
-            
-            # Generar slots de tiempo
+
+            # Generar slots para cada franja horaria
             horarios_disponibles = []
-            hora_actual = inicio_dt
-            
-            while hora_actual + timedelta(minutes=duracion_minutos) <= fin_dt:
-                slot_inicio = hora_actual
-                slot_fin = hora_actual + timedelta(minutes=duracion_minutos)
-                
-                # Verificar si el slot está ocupado
-                ocupado = False
-                for evento in eventos_ocupados:
-                    # Verificar si el evento es del peluquero correcto
-                    peluquero_evento = evento.get('summary', '')
-                    if peluquero['nombre'] not in peluquero_evento:
-                        continue
-                    
-                    evento_inicio = datetime.fromisoformat(evento['start'].get('dateTime', evento['start'].get('date')))
-                    evento_fin = datetime.fromisoformat(evento['end'].get('dateTime', evento['end'].get('date')))
-                    
-                    # Verificar solapamiento
-                    if not (slot_fin <= evento_inicio or slot_inicio >= evento_fin):
-                        ocupado = True
-                        break
-                
-                if not ocupado:
-                    horarios_disponibles.append(hora_actual.strftime("%H:%M"))
-                
-                hora_actual += timedelta(minutes=duracion_minutos)
-            
+
+            for hora_inicio_str, hora_fin_str in franjas:
+                inicio_dt = datetime.combine(dia, datetime.strptime(hora_inicio_str, "%H:%M").time())
+                fin_dt = datetime.combine(dia, datetime.strptime(hora_fin_str, "%H:%M").time())
+                hora_actual = inicio_dt
+
+                while hora_actual + timedelta(minutes=duracion_minutos) <= fin_dt:
+                    slot_inicio = hora_actual
+                    slot_fin = hora_actual + timedelta(minutes=duracion_minutos)
+
+                    ocupado = False
+                    for evento in eventos_ocupados:
+                        peluquero_evento = evento.get('summary', '')
+                        if peluquero['nombre'] not in peluquero_evento:
+                            continue
+
+                        evento_inicio_str = evento['start'].get('dateTime', evento['start'].get('date'))
+                        evento_fin_str = evento['end'].get('dateTime', evento['end'].get('date'))
+
+                        try:
+                            evento_inicio = datetime.fromisoformat(evento_inicio_str.replace('Z', '+00:00'))
+                            evento_fin = datetime.fromisoformat(evento_fin_str.replace('Z', '+00:00'))
+                            # Comparar sin timezone para simplicidad
+                            evento_inicio = evento_inicio.replace(tzinfo=None)
+                            evento_fin = evento_fin.replace(tzinfo=None)
+                        except Exception:
+                            continue
+
+                        if not (slot_fin <= evento_inicio or slot_inicio >= evento_fin):
+                            ocupado = True
+                            break
+
+                    if not ocupado:
+                        horarios_disponibles.append(hora_actual.strftime("%H:%M"))
+
+                    hora_actual += timedelta(minutes=duracion_minutos)
+
             return horarios_disponibles
         
         except HttpError as e:

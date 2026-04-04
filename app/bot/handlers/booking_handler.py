@@ -443,7 +443,7 @@ class BookingHandler:
         # Crear reserva
         print(f"📅 Creando reserva para {cliente} - {nombre_servicios}")
         
-        if self._crear_reserva(
+        resultado_reserva = self._crear_reserva(
             peluqueria_key,
             fecha_hora,
             cliente,
@@ -451,7 +451,17 @@ class BookingHandler:
             duracion_total,
             numero_limpio,
             peluquero
-        ):
+        )
+
+        if resultado_reserva == "ocupado":
+            # Slot tomado justo antes por otro cliente
+            whatsapp_service.enviar_mensaje(
+                "⚠️ *Ese horario ya no está disponible*\n\n"
+                "Alguien lo reservó hace unos instantes.\n\n"
+                "Escribí *menu* para elegir otro horario.",
+                numero
+            )
+        elif resultado_reserva:
             fecha_formateada = formatear_fecha_espanol(fecha_hora)
             hora = fecha_hora.strftime("%H:%M")
             
@@ -499,12 +509,26 @@ class BookingHandler:
     
     def _crear_reserva(self, peluqueria_key, fecha_hora, cliente, servicios, duracion, telefono, peluquero):
         """
-        Crea la reserva en Google Calendar y MongoDB
+        Crea la reserva en Google Calendar y MongoDB.
+        Verifica disponibilidad justo antes de crear para evitar doble reserva.
         
         Returns:
             bool: True si se creó exitosamente
         """
         try:
+            # Verificar disponibilidad en tiempo real antes de confirmar
+            # Esto evita que dos clientes reserven el mismo slot casi simultáneamente
+            slots_disponibles = self.calendar_service.buscar_turnos_disponibles(
+                peluqueria_key,
+                peluquero,
+                fecha_hora.date(),
+                duracion
+            )
+            hora_solicitada = fecha_hora.strftime("%H:%M")
+            if hora_solicitada not in slots_disponibles:
+                print(f"⚠️ Slot {hora_solicitada} ya no disponible para {peluquero.get('nombre') if peluquero else 'peluquero'}")
+                return "ocupado"  # Valor especial para distinguir de error técnico
+
             # Crear evento en Google Calendar
             evento = self.calendar_service.crear_evento_calendario(
                 peluqueria_key,

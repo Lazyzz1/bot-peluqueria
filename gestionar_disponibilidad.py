@@ -1,4 +1,5 @@
 # gestionar_disponibilidad.py
+# muy útil cuando un peluquero se va de vacaciones y necesito marcarlo como no disponible rápido
 import json
 from datetime import datetime
 

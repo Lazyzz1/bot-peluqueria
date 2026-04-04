@@ -34,12 +34,24 @@ def crear_checkout():
             "nombre_negocio", "ubicacion", "horarios",
             "servicios", "cantidad_peluqueros", "peluqueros", "plan"
         ]
+        # timezone es opcional — si no viene usamos Argentina por defecto
         for campo in campos_requeridos:
             if not data.get(campo):
                 return jsonify({"error": f"Falta el campo: {campo}"}), 400
 
         if data["plan"] not in ["argentina", "internacional"]:
             return jsonify({"error": "Plan inválido"}), 400
+
+        # Validar límites de caracteres para evitar datos malformados
+        limites = {
+            "nombre": 50, "apellido": 50, "email": 100, "telefono": 20,
+            "nombre_negocio": 100, "ubicacion": 200,
+            "horarios": 300, "servicios": 500,
+        }
+        for campo, limite in limites.items():
+            valor = data.get(campo, "")
+            if isinstance(valor, str) and len(valor) > limite:
+                return jsonify({"error": f"El campo '{campo}' excede el límite de {limite} caracteres"}), 400
 
         # Verificar si el teléfono ya usó un trial antes
         telefono = data["telefono"]
@@ -65,6 +77,7 @@ def crear_checkout():
             "cantidad_peluqueros": int(data["cantidad_peluqueros"]),
             "peluqueros":          data["peluqueros"],  # [{"nombre": str, "telefono": str}]
             "plan":                data["plan"],
+            "timezone":            data.get("timezone", "America/Argentina/Buenos_Aires"),
             "estado_pago":         "pendiente",
             "bot_configurado":     False,
             "creado_en":           datetime.utcnow(),

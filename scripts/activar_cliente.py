@@ -127,6 +127,7 @@ def activar_cliente():
         return
 
     # Confirmar
+    timezone = cliente.get("timezone", "America/Argentina/Buenos_Aires")
     print(f"\n{'=' * 60}")
     print(f"📋 RESUMEN DE ACTIVACIÓN:")
     print(f"{'=' * 60}")
@@ -135,6 +136,7 @@ def activar_cliente():
     print(f"Teléfono:       {cliente.get('telefono')}")
     print(f"Plan:           {cliente.get('plan', '?').upper()}")
     print(f"Peluqueria key: {peluqueria_key}")
+    print(f"Zona horaria:   {timezone}")
     print(f"Trial inicio:   AHORA ({datetime.utcnow().strftime('%d/%m/%Y %H:%M')} UTC)")
     print(f"Trial vence:    En 7 días")
     print(f"{'=' * 60}")
@@ -158,6 +160,11 @@ def activar_cliente():
             "actualizado_en":    ahora,
         }}
     )
+
+    # Recordatorio: al agregar este cliente al clientes.json,
+    # usá su timezone detectado:
+    print(f"\n💡 Al crear la entrada en clientes.json usá:")
+    print(f"   \"timezone\": \"{timezone}\"")
 
     if resultado.modified_count > 0:
         print(f"\n✅ ¡Cliente activado exitosamente!")

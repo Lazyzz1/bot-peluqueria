@@ -28,6 +28,32 @@ except ImportError:
     def marcar_recordatorio_enviado(*args, **kwargs): return False
     def recordatorio_ya_enviado(*args, **kwargs): return False
 
+# Redis para deduplicacion de recordatorios (sobrevive reinicios de Railway)
+try:
+    from app.bot.states.state_manager import redis_client as _redis
+    REDIS_DISPONIBLE = True
+except Exception:
+    _redis = None
+    REDIS_DISPONIBLE = False
+
+def _recordatorio_ya_enviado_redis(recordatorio_id: str) -> bool:
+    """Verifica en Redis si ya se envio este recordatorio."""
+    if not REDIS_DISPONIBLE or not _redis:
+        return False
+    try:
+        return bool(_redis.exists(f"rec:{recordatorio_id}"))
+    except Exception:
+        return False
+
+def _marcar_recordatorio_redis(recordatorio_id: str):
+    """Marca en Redis que este recordatorio fue enviado. Expira en 48hs."""
+    if not REDIS_DISPONIBLE or not _redis:
+        return
+    try:
+        _redis.setex(f"rec:{recordatorio_id}", 172800, "1")  # 48hs en segundos
+    except Exception as e:
+        print(f"Advertencia: no se pudo marcar recordatorio en Redis: {e}")
+
 
 class NotificationService:
     """Servicio para gestionar notificaciones y recordatorios"""
@@ -44,15 +70,18 @@ class NotificationService:
         self.calendar_service = CalendarService(peluquerias_config)
         self.templates = templates_config or {}
         
-        # Cache de recordatorios enviados (thread-safe)
+        # Cache en memoria como fallback si Redis no está disponible
         self.recordatorios_enviados = set()
         self.recordatorios_lock = Lock()
         
-        # Archivo para persistencia
+        # Archivo para persistencia (fallback si Redis no disponible)
         self.archivo_recordatorios = "recordatorios_enviados.json"
         
-        # Cargar recordatorios previos
-        self._cargar_recordatorios_enviados()
+        if REDIS_DISPONIBLE:
+            print("   ✅ Recordatorios: usando Redis (persistente entre reinicios)")
+        else:
+            print("   ⚠️  Recordatorios: usando archivo JSON (se pierde al reiniciar)")
+            self._cargar_recordatorios_enviados()
     
     def _cargar_recordatorios_enviados(self):
         """Carga los recordatorios enviados desde archivo JSON"""
@@ -280,6 +309,22 @@ class NotificationService:
             traceback.print_exc()
             return False
     
+    def _ya_enviado(self, recordatorio_id: str) -> bool:
+        """Verifica si ya se envio un recordatorio. Redis > MongoDB > memoria."""
+        # 1. Redis (persiste entre reinicios)
+        if _recordatorio_ya_enviado_redis(recordatorio_id):
+            return True
+        # 2. Memoria in-process (fallback)
+        with self.recordatorios_lock:
+            return recordatorio_id in self.recordatorios_enviados
+
+    def _marcar_enviado(self, recordatorio_id: str):
+        """Marca un recordatorio como enviado en Redis y en memoria."""
+        _marcar_recordatorio_redis(recordatorio_id)
+        with self.recordatorios_lock:
+            self.recordatorios_enviados.add(recordatorio_id)
+        self._guardar_recordatorios_enviados()
+
     def sistema_recordatorios_loop(self):
         """
         Loop principal del sistema de recordatorios
@@ -302,25 +347,21 @@ class NotificationService:
                         turnos_24h = self.obtener_turnos_proximos(peluqueria_key, horas_anticipacion=24)
                         for turno in turnos_24h:
                             recordatorio_id = f"{turno['id']}_24h"
-                            
-                            with self.recordatorios_lock:
-                                if recordatorio_id not in self.recordatorios_enviados:
-                                    if self.enviar_recordatorio(turno, horas_anticipacion=24):
-                                        self.recordatorios_enviados.add(recordatorio_id)
-                                        self._guardar_recordatorios_enviados()
-                                        print(f"   📤 Recordatorio 24h enviado para turno {turno['inicio'].strftime('%d/%m %H:%M')}")
-                        
+                            if self._ya_enviado(recordatorio_id):
+                                continue
+                            if self.enviar_recordatorio(turno, horas_anticipacion=24):
+                                self._marcar_enviado(recordatorio_id)
+                                print(f"   📤 Recordatorio 24h enviado para turno {turno['inicio'].strftime('%d/%m %H:%M')}")
+
                         # Recordatorios de 2 horas
                         turnos_2h = self.obtener_turnos_proximos(peluqueria_key, horas_anticipacion=2)
                         for turno in turnos_2h:
                             recordatorio_id = f"{turno['id']}_2h"
-                            
-                            with self.recordatorios_lock:
-                                if recordatorio_id not in self.recordatorios_enviados:
-                                    if self.enviar_recordatorio(turno, horas_anticipacion=2):
-                                        self.recordatorios_enviados.add(recordatorio_id)
-                                        self._guardar_recordatorios_enviados()
-                                        print(f"   📤 Recordatorio 2h enviado para turno {turno['inicio'].strftime('%d/%m %H:%M')}")
+                            if self._ya_enviado(recordatorio_id):
+                                continue
+                            if self.enviar_recordatorio(turno, horas_anticipacion=2):
+                                self._marcar_enviado(recordatorio_id)
+                                print(f"   📤 Recordatorio 2h enviado para turno {turno['inicio'].strftime('%d/%m %H:%M')}")
                     
                     except Exception as e:
                         print(f"   ❌ Error procesando {peluqueria_key}: {e}")

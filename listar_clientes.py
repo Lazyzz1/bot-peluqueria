@@ -1,6 +1,7 @@
 
 """
 Lista todos los clientes configurados
+útil para ver un resumen rápido de tus clientes
 """
 
 import json

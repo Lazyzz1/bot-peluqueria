@@ -1,4 +1,4 @@
-# Script: compartir_calendario.py
+# lo necesito para darle acceso al dueño de la peluquería a ver su calendario.
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 import json
