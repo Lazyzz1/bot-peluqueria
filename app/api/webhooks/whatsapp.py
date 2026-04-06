@@ -28,20 +28,61 @@ def webhook_whatsapp():
         numero = data.get("From")  # whatsapp:+5492974210130
         texto = data.get("Body", "").strip()
         numero_destino = data.get("To")  # whatsapp:+14155238886
-        
-        # Validar datos básicos
-        if not numero or not texto:
-            print(f"⚠️ Datos incompletos - From: {numero}, Body: {texto}")
+
+        # Detectar si hay archivos adjuntos (fotos, audios, videos, documentos)
+        num_media = int(data.get("NumMedia", 0))
+        media_type = data.get("MediaContentType0", "")  # ej: "image/jpeg", "audio/ogg"
+
+        # Validar que al menos tengamos el número de origen
+        if not numero:
+            print(f"⚠️ Request sin numero de origen")
             return "", 400
-        
+
         # Log del mensaje recibido
         print(f"\n{'='*60}")
         print(f"📨 MENSAJE RECIBIDO")
         print(f"{'='*60}")
         print(f"De: {numero}")
         print(f"A: {numero_destino}")
-        print(f"Mensaje: {texto}")
+        print(f"Mensaje: {texto or '(sin texto)'}")
+        if num_media:
+            print(f"Media: {num_media} archivo(s) - {media_type}")
         print(f"{'='*60}\n")
+
+        # Manejar mensajes sin texto (fotos, audios, videos, stickers)
+        if not texto and num_media > 0:
+            from app.services.whatsapp_service import whatsapp_service
+            peluqueria_key_temp = detectar_peluqueria(numero_destino)
+
+            if media_type.startswith("audio"):
+                respuesta = (
+                    "🎤 Recibí tu nota de voz, pero aún no puedo escucharla.\n\n"
+                    "Por favor escribime tu consulta por texto y te respondo enseguida. ✍️"
+                )
+            elif media_type.startswith("image"):
+                respuesta = (
+                    "📷 Recibí tu imagen, pero aún no puedo verla.\n\n"
+                    "Por favor escribime tu consulta por texto y te ayudo. ✍️"
+                )
+            elif media_type.startswith("video"):
+                respuesta = (
+                    "🎥 Recibí tu video, pero aún no puedo reproducirlo.\n\n"
+                    "Por favor escribime tu consulta por texto. ✍️"
+                )
+            else:
+                respuesta = (
+                    "📎 Recibí tu archivo, pero aún no puedo procesarlo.\n\n"
+                    "Por favor escribime tu consulta por texto. ✍️"
+                )
+
+            whatsapp_service.enviar_mensaje(respuesta, numero)
+            print(f"📎 Media recibida de {numero} ({media_type}) - respuesta enviada")
+            return "", 200
+
+        # Si no hay texto ni media, ignorar silenciosamente
+        if not texto:
+            print(f"⚠️ Mensaje vacío de {numero} - ignorado")
+            return "", 200
         
         # Detectar peluquería según número de Twilio
         peluqueria_key = detectar_peluqueria(numero_destino)
