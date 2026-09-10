@@ -1,5 +1,6 @@
 import os
 from pymongo import MongoClient
+from bson import ObjectId
 from datetime import datetime, timedelta
 import pytz
 
@@ -255,3 +256,117 @@ def crear_indices():
 # Crear índices al importar (solo se ejecuta una vez)
 if os.getenv("CREATE_INDEXES") == "true":
     crear_indices()
+
+
+# ==================== CONFIG DINÁMICA DE PELUQUERÍAS (para automatización) ====================
+# Nueva colección: acá vive la config que el bot necesita para atender a cada
+# cliente (horarios, servicios, peluqueros, numero_twilio, calendar_id...).
+# Es el reemplazo dinámico de config/clientes.json — se lee al arrancar y se
+# refresca periódicamente (ver app/core/config.py), así un cliente nuevo
+# aprovisionado automáticamente entra en producción sin reiniciar Railway.
+peluquerias_config_collection = db["peluquerias_config"]
+
+
+def guardar_config_peluqueria(peluqueria_key: str, config: dict) -> bool:
+    """Crea o actualiza la config completa de una peluquería (upsert)."""
+    try:
+        config = dict(config)
+        config["actualizado_en"] = datetime.utcnow()
+        peluquerias_config_collection.update_one(
+            {"_key": peluqueria_key},
+            {"$set": config, "$setOnInsert": {"creado_en": datetime.utcnow()}},
+            upsert=True,
+        )
+        print(f"✅ Config de peluquería guardada: {peluqueria_key}")
+        return True
+    except Exception as e:
+        print(f"❌ Error guardando config de {peluqueria_key}: {e}")
+        return False
+
+
+def obtener_todas_las_config_peluquerias() -> dict:
+    """
+    Devuelve todas las peluquerías activas en el formato que espera PELUQUERIAS,
+    ej: {"peluqueria_el_estilo": {...}, "peluqueria_roca": {...}}
+    """
+    try:
+        resultado = {}
+        for doc in peluquerias_config_collection.find({"activo": {"$ne": False}}):
+            key = doc.pop("_key", None)
+            doc.pop("_id", None)
+            doc.pop("creado_en", None)
+            doc.pop("actualizado_en", None)
+            if key:
+                resultado[key] = doc
+        return resultado
+    except Exception as e:
+        print(f"❌ Error obteniendo config de peluquerías: {e}")
+        return {}
+
+
+def eliminar_config_peluqueria(peluqueria_key: str) -> bool:
+    """Da de baja una peluquería (soft-delete, no borra el historial)."""
+    try:
+        peluquerias_config_collection.update_one(
+            {"_key": peluqueria_key},
+            {"$set": {"activo": False, "actualizado_en": datetime.utcnow()}},
+        )
+        return True
+    except Exception as e:
+        print(f"❌ Error eliminando config de {peluqueria_key}: {e}")
+        return False
+
+
+# ==================== CAPA DE PAGOS: conexiones y turnos pendientes ====================
+conexiones_pago_collection = db["conexiones_pago"]
+turnos_pendientes_pago_collection = db["turnos_pendientes_pago"]
+
+
+def guardar_conexion_pago(peluqueria_key: str, proveedor: str, datos: dict) -> bool:
+    """Guarda/actualiza las credenciales de un negocio con un proveedor de pagos."""
+    try:
+        datos = dict(datos)
+        datos["actualizado_en"] = datetime.utcnow()
+        conexiones_pago_collection.update_one(
+            {"peluqueria_key": peluqueria_key, "proveedor": proveedor},
+            {"$set": datos, "$setOnInsert": {"creado_en": datetime.utcnow()}},
+            upsert=True,
+        )
+        return True
+    except Exception as e:
+        print(f"❌ Error guardando conexión de pago ({peluqueria_key}/{proveedor}): {e}")
+        return False
+
+
+def obtener_conexion_pago(peluqueria_key: str, proveedor: str) -> dict | None:
+    return conexiones_pago_collection.find_one({"peluqueria_key": peluqueria_key, "proveedor": proveedor})
+
+
+def crear_turno_pendiente_pago(datos: dict) -> str:
+    """
+    Guarda todo lo necesario para crear la reserva una vez que se confirme
+    el pago de la seña (fecha_hora, cliente, servicios, peluquero, etc).
+    Returns: el id (string) del documento creado.
+    """
+    datos = dict(datos)
+    datos["estado"] = "pendiente"
+    datos["creado_en"] = datetime.utcnow()
+    resultado = turnos_pendientes_pago_collection.insert_one(datos)
+    return str(resultado.inserted_id)
+
+
+def obtener_turno_pendiente_pago(turno_pendiente_id: str) -> dict | None:
+    try:
+        return turnos_pendientes_pago_collection.find_one({"_id": ObjectId(turno_pendiente_id)})
+    except Exception:
+        return None
+
+
+def actualizar_estado_turno_pendiente(turno_pendiente_id: str, estado: str) -> None:
+    try:
+        turnos_pendientes_pago_collection.update_one(
+            {"_id": ObjectId(turno_pendiente_id)},
+            {"$set": {"estado": estado, "actualizado_en": datetime.utcnow()}},
+        )
+    except Exception as e:
+        print(f"❌ Error actualizando turno pendiente {turno_pendiente_id}: {e}")

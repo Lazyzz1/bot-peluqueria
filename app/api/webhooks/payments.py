@@ -7,16 +7,28 @@ from flask import Blueprint, request, jsonify
 from app.services.payment_service import payment_service
 from app.services.whatsapp_service import whatsapp_service
 from app.services.calendar_service import CalendarService
+from app.services.provisioning_service import aprovisionar_cliente, liberar_recursos_si_estaba_en_trial
 from datetime import datetime
 import json
 
 try:
-    from app.core.database import guardar_pago, actualizar_estado_turno
+    from app.core.database import (
+        guardar_pago,
+        actualizar_estado_turno,
+        guardar_turno,
+        obtener_turno_pendiente_pago,
+        actualizar_estado_turno_pendiente,
+    )
     MONGODB_DISPONIBLE = True
 except ImportError:
     MONGODB_DISPONIBLE = False
     def guardar_pago(*args, **kwargs): return None
     def actualizar_estado_turno(*args, **kwargs): return None
+    def guardar_turno(*args, **kwargs): return None
+    def obtener_turno_pendiente_pago(*args, **kwargs): return None
+    def actualizar_estado_turno_pendiente(*args, **kwargs): return None
+
+from app.bot.handlers.booking_handler import formatear_telefono
 
 # Crear blueprint
 payments_bp = Blueprint('payments', __name__)
@@ -213,7 +225,13 @@ def procesar_pago_mercadopago(payment_info):
                 procesar_onboarding_pagado(metadata, payment_id, "mercadopago",
                                            payment_info.get("transaction_amount"))
                 return
-            
+
+            # Seña de un turno (nuevo flujo con MercadoPago conectado al negocio)
+            if metadata.get("tipo") == "reserva_turno_sena":
+                turno_pendiente_id = metadata.get("turno_pendiente_id") or payment_info.get("external_reference")
+                confirmar_turno_con_sena(turno_pendiente_id, payment_id, payment_info.get("transaction_amount"))
+                return
+
             turno_info = {
                 "peluqueria_key": metadata.get('peluqueria_key'),
                 "cliente_nombre": metadata.get('cliente_nombre'),
@@ -325,6 +343,111 @@ def confirmar_turno_con_pago(turno_info):
         return False
 
 
+# ==================== CONFIRMACIÓN DE TURNO CON SEÑA ====================
+
+def confirmar_turno_con_sena(turno_pendiente_id, payment_id, monto_pagado):
+    """
+    Se dispara cuando MercadoPago confirma el pago de una seña (turno con
+    requiere_pago=True). Acá SÍ se crea la reserva de verdad — hasta este
+    punto, el horario no estaba bloqueado en el calendario.
+    """
+    if not turno_pendiente_id:
+        print("❌ confirmar_turno_con_sena sin turno_pendiente_id")
+        return
+
+    turno = obtener_turno_pendiente_pago(turno_pendiente_id)
+    if not turno:
+        print(f"❌ No se encontró turno_pendiente {turno_pendiente_id}")
+        return
+
+    if turno.get("estado") == "confirmado":
+        print(f"ℹ️ Turno pendiente {turno_pendiente_id} ya estaba confirmado, ignoro webhook duplicado")
+        return
+
+    peluqueria_key = turno["peluqueria_key"]
+    fecha_hora = datetime.fromisoformat(turno["fecha_hora"])
+    peluquero = turno.get("peluquero") or {}
+
+    # Cargar config (PELUQUERIAS ya se refresca solo desde Mongo, ver config.py)
+    from app.core.config import PELUQUERIAS
+    config = PELUQUERIAS.get(peluqueria_key, {})
+
+    calendar_service = CalendarService(PELUQUERIAS)
+
+    # Re-chequear disponibilidad — pudo haberse ocupado mientras esperábamos el pago
+    slots = calendar_service.buscar_turnos_disponibles(
+        peluqueria_key, peluquero, fecha_hora.date(), turno.get("duracion", 30)
+    )
+    if fecha_hora.strftime("%H:%M") not in slots:
+        actualizar_estado_turno_pendiente(turno_pendiente_id, "conflicto_horario")
+        whatsapp_service.enviar_mensaje(
+            "⚠️ Recibimos tu seña, pero ese horario se ocupó mientras "
+            "esperábamos el pago. Contactate con el negocio para "
+            "reprogramar — te vamos a reembolsar la seña.",
+            f"whatsapp:{turno['cliente_telefono']}"
+        )
+        admin = os.getenv("ADMIN_WHATSAPP", "")
+        if admin:
+            whatsapp_service.enviar_mensaje(
+                f"⚠️ Conflicto de horario en {peluqueria_key}: turno_pendiente "
+                f"{turno_pendiente_id} pagó pero el slot ya no está libre. "
+                f"Revisar reembolso manual (payment_id: {payment_id}).",
+                f"whatsapp:{admin}"
+            )
+        return
+
+    evento = calendar_service.crear_evento_calendario(
+        peluqueria_key, peluquero,
+        turno["cliente_nombre"], turno["cliente_telefono"],
+        fecha_hora, duracion_minutos=turno.get("duracion", 30)
+    )
+
+    if not evento:
+        print(f"❌ Error creando evento de calendario para turno_pendiente {turno_pendiente_id}")
+        return
+
+    if MONGODB_DISPONIBLE:
+        guardar_turno(
+            peluqueria_key, turno["cliente_telefono"], turno["cliente_nombre"],
+            turno.get("nombre_servicios", ""), fecha_hora,
+            peluquero.get("nombre") if peluquero else None,
+            turno.get("precio_total", 0), turno.get("duracion", 30),
+            evento.get("id"),
+        )
+
+    actualizar_estado_turno_pendiente(turno_pendiente_id, "confirmado")
+
+    fecha_formateada = formatear_fecha_espanol_local(fecha_hora)
+    hora = fecha_hora.strftime("%H:%M")
+
+    whatsapp_service.enviar_mensaje(
+        "✅ *¡Seña recibida!*\n\n"
+        f"Tu turno quedó confirmado para el {fecha_formateada} a las {hora}.\n\n"
+        f"Total del servicio: ${turno.get('precio_total', 0):,}\n"
+        f"Seña abonada: ${turno.get('monto_sena', 0):,}\n"
+        f"Saldo a pagar en el local: ${turno.get('saldo', 0):,}.".replace(',', '.'),
+        f"whatsapp:{turno['cliente_telefono']}"
+    )
+
+    if peluquero and peluquero.get("telefono"):
+        whatsapp_service.enviar_mensaje(
+            f"🆕 *Nuevo turno (con seña pagada) - {config.get('nombre', '')}*\n\n"
+            f"👤 Cliente: {turno['cliente_nombre']}\n"
+            f"📱 Teléfono: {formatear_telefono(turno['cliente_telefono'])}\n"
+            f"📅 Fecha: {fecha_formateada}\n"
+            f"🕐 Hora: {hora}\n"
+            f"✂️ Servicio: {turno.get('nombre_servicios', '')}\n"
+            f"💵 Seña ya pagada: ${turno.get('monto_sena', 0):,}\n"
+            f"🏷️ Saldo a cobrar en el local: ${turno.get('saldo', 0):,}".replace(',', '.'),
+            f"whatsapp:{peluquero['telefono']}"
+        )
+
+
+def formatear_fecha_espanol_local(fecha_hora):
+    from app.bot.utils.formatters import formatear_fecha_espanol
+    return formatear_fecha_espanol(fecha_hora)
+
+
 # ==================== SUSCRIPCIONES MERCADOPAGO ====================
 
 def procesar_evento_suscripcion_mp(preapproval_id: str):
@@ -376,6 +499,10 @@ def procesar_evento_suscripcion_mp(preapproval_id: str):
             )
             print(f"Cliente {cliente_id} suscripcion activada")
 
+            # Aprovisionamiento automático: numero de Twilio, sender de WhatsApp,
+            # Google Calendar y config del bot — reemplaza el activar_cliente.py manual
+            aprovisionar_cliente(cliente_id)
+
         elif estado in ("paused", "cancelled"):
             # Suscripcion pausada o cancelada
             clientes_collection.update_one(
@@ -387,6 +514,10 @@ def procesar_evento_suscripcion_mp(preapproval_id: str):
                 }}
             )
             print(f"Cliente {cliente_id} suscripcion {estado}")
+
+            # Si canceló/pausó sin haber tenido un cobro real todavía (o sea,
+            # seguía en el trial), liberamos el número de Twilio para reusarlo
+            liberar_recursos_si_estaba_en_trial(cliente_id)
 
             # Avisar al admin
             import os as _os
@@ -492,25 +623,14 @@ def procesar_onboarding_pagado(metadata, payment_id, provider, monto):
         )
         print(f"✅ Cliente {cliente_id} marcado como pagado ({provider})")
 
-        # Obtener datos del cliente para el mensaje
         cliente = clientes_collection.find_one({"_id": ObjectId(cliente_id)})
         if not cliente:
             return
 
-        # Avisarte por WhatsApp cuando alguien paga
-        tu_numero = os.getenv("ADMIN_WHATSAPP", "")  # ej: +5492974924147 en tu .env
-        if tu_numero:
-            mensaje = (
-                f"🎉 *¡Nuevo cliente pagó el setup!*\n\n"
-                f"👤 {cliente['nombre']} {cliente['apellido']}\n"
-                f"🏪 {cliente['nombre_negocio']}\n"
-                f"📍 {cliente['ubicacion']}\n"
-                f"📱 {cliente['telefono']}\n"
-                f"✉️ {cliente['email']}\n"
-                f"💰 Plan: {cliente['plan'].upper()} - ${monto}\n\n"
-                f"Ya podés empezar a configurar el bot 🚀"
-            )
-            whatsapp_service.enviar_mensaje(mensaje, f"whatsapp:{tu_numero}")
+        # Aprovisionamiento automático — reemplaza el "Ya podés empezar a
+        # configurar el bot" manual de antes. aprovisionar_cliente() ya se
+        # encarga de avisarte a vos y al dueño del negocio por WhatsApp.
+        aprovisionar_cliente(cliente_id)
 
     except Exception as e:
         print(f"❌ Error en procesar_onboarding_pagado: {e}")

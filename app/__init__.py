@@ -24,6 +24,11 @@ def create_app():
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
     app.config['JSON_AS_ASCII'] = False  # Para caracteres UTF-8
     
+    # Refresco periódico de PELUQUERIAS desde Mongo (necesario para que un
+    # cliente aprovisionado automáticamente entre en producción sin reiniciar)
+    from app.core.config import iniciar_refresco_peluquerias
+    iniciar_refresco_peluquerias()
+
     # Registrar blueprints
     register_blueprints(app)
     
@@ -49,7 +54,10 @@ def register_blueprints(app):
     app.register_blueprint(health_bp)
     
     from app.api.routes.payments import payments_routes_bp
-    app.register_blueprint(payments_routes_bp, url_prefix='/api')    
+    app.register_blueprint(payments_routes_bp, url_prefix='/api')
+
+    from app.api.routes.pagos import pagos_bp
+    app.register_blueprint(pagos_bp, url_prefix='/api')    
     # Rutas estáticas (landing page)
     try:
         from app.api.routes.static import static_bp

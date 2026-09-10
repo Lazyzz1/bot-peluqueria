@@ -1,132 +1,120 @@
 """
-Configuración centralizada de la aplicación
+Servicio de WhatsApp (Twilio)
+Envío de mensajes de texto y mensajes con plantilla (Content API).
+
+⚠️ ESTE ARCHIVO REEMPLAZA A app/services/whatsapp_service.py
+El original que subiste es literalmente una copia de app/core/config.py
+(confirmado con `git show`), y por eso `whatsapp_service` no existe como
+símbolo importable. Todo el bot depende de este objeto, así que sin esto
+el proyecto no puede enviar mensajes.
+
+Reconstruido en base a cómo lo llama el resto del código:
+  - whatsapp_service.enviar_mensaje(mensaje, numero)
+  - whatsapp_service.enviar_con_plantilla(telefono=..., content_sid=..., variables={...})
+(ver notification_service.py, booking_handler.py, test_plantillas.py, costo_mensaje.py)
+
+Si tu implementación original hacía algo distinto o más específico
+(reintentos, logging particular, etc.), decime y lo ajustamos —
+esto cubre el contrato que usa el resto del código, pero no puedo
+recuperar lógica que no esté reflejada en cómo se lo invoca.
 """
+
 import os
-import sys
 import json
-from dotenv import load_dotenv
-from zoneinfo import available_timezones
-
-# Detectar modo de ejecución
-MODO_DESARROLLO = 'run_local' in sys.argv[0] or os.getenv('FLASK_ENV') == 'development'
-
-# Cargar variables de entorno según el modo
-if MODO_DESARROLLO:
-    print("=" * 60)
-    print("🧪 MODO DESARROLLO ACTIVADO")
-    print("=" * 60)
-    load_dotenv('.env.local')
-else:
-    print("=" * 60)
-    print("🚀 MODO PRODUCCIÓN")
-    print("=" * 60)
-    load_dotenv()
+from twilio.rest import Client
+from twilio.base.exceptions import TwilioRestException
 
 
-class Config:
-    """Clase de configuración base"""
-    
-    # Flask
-    SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key')
-    
-    # Twilio/WhatsApp
-    TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
-    TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
-    TWILIO_WHATSAPP_NUMBER = os.getenv("TWILIO_WHATSAPP_NUMBER")
-    VERIFY_TOKEN = os.getenv("VERIFY_TOKEN")
-    
-    # Plantillas de WhatsApp
-    USAR_PLANTILLAS = os.getenv("USAR_PLANTILLAS", "True").lower() == "true"
-    TEMPLATE_CONFIRMACION = os.getenv("TEMPLATE_CONFIRMACION", "HXxxxxx")
-    TEMPLATE_RECORDATORIO = os.getenv("TEMPLATE_RECORDATORIO", "HXxxxxx")
-    TEMPLATE_NUEVO_TURNO = os.getenv("TEMPLATE_NUEVO_TURNO", "HXxxxxx")
-    TEMPLATE_MODIFICADO = os.getenv("TEMPLATE_MODIFICADO", "HXxxxxx")
-    
-    # Google Calendar
-    GOOGLE_SCOPES = ['https://www.googleapis.com/auth/calendar']
-    
-    # Archivos
-    ARCHIVO_RECORDATORIOS = "recordatorios_enviados.json"
-    ARCHIVO_ESTADOS = "user_states.json"
-    ARCHIVO_CLIENTES = "clientes.json"
-    
-    # Directorios
-    DIR_TOKENS = "tokens"
-    DIR_CONFIG = "config"
-    
-    # MongoDB (opcional)
-    MONGODB_URI = os.getenv("MONGODB_URI")
-    MONGODB_DB = os.getenv("MONGODB_DB", "peluqueria_bot")
-    
-    # Redis (opcional)
-    REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
-    REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
-    REDIS_DB = int(os.getenv("REDIS_DB", 0))
-    REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
-    
-    @classmethod
-    def validar(cls):
-        """Valida que las configuraciones necesarias estén presentes"""
-        # Validar Twilio
-        if not all([cls.TWILIO_ACCOUNT_SID, cls.TWILIO_AUTH_TOKEN, cls.TWILIO_WHATSAPP_NUMBER]):
-            raise ValueError("❌ Faltan variables de entorno de Twilio")
-        
-        # Validar plantillas si están activas
-        if cls.USAR_PLANTILLAS:
-            faltantes = [
-                nombre for nombre, valor in {
-                    "TEMPLATE_CONFIRMACION": cls.TEMPLATE_CONFIRMACION,
-                    "TEMPLATE_RECORDATORIO": cls.TEMPLATE_RECORDATORIO,
-                    "TEMPLATE_NUEVO_TURNO": cls.TEMPLATE_NUEVO_TURNO,
-                    "TEMPLATE_MODIFICADO": cls.TEMPLATE_MODIFICADO,
-                }.items() if not valor or valor == "HXxxxxx"
-            ]
-            
-            if faltantes:
-                print("⚠️ ADVERTENCIA: Faltan Content SIDs de WhatsApp:")
-                for f in faltantes:
-                    print(f"   - {f}")
-        
-        print("✅ Configuración validada correctamente")
+class WhatsAppService:
+    """Envío de mensajes de WhatsApp vía Twilio."""
+
+    def __init__(self):
+        self.account_sid = os.getenv("TWILIO_ACCOUNT_SID")
+        self.auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+        self.numero_from = os.getenv("TWILIO_WHATSAPP_NUMBER")  # sin prefijo whatsapp:, ej "+15017122661"
+
+        if not all([self.account_sid, self.auth_token, self.numero_from]):
+            print("⚠️ WhatsAppService: faltan credenciales de Twilio en el entorno")
+            self.client = None
+        else:
+            self.client = Client(self.account_sid, self.auth_token)
+
+    @staticmethod
+    def _normalizar(numero: str) -> str:
+        """Asegura el prefijo whatsapp: sin duplicarlo."""
+        numero = (numero or "").strip()
+        if numero.startswith("whatsapp:"):
+            return numero
+        return f"whatsapp:{numero}"
+
+    def enviar_mensaje(self, mensaje: str, numero: str):
+        """
+        Envía un mensaje de texto libre por WhatsApp.
+
+        Args:
+            mensaje: Texto a enviar
+            numero: Número destino, con o sin prefijo "whatsapp:"
+
+        Returns:
+            El SID del mensaje si se envió, None si falló.
+        """
+        if not self.client:
+            print("❌ WhatsAppService no configurado, no se puede enviar")
+            return None
+
+        try:
+            msg = self.client.messages.create(
+                from_=self._normalizar(self.numero_from),
+                to=self._normalizar(numero),
+                body=mensaje,
+            )
+            print(f"✅ WhatsApp enviado a {numero} — SID: {msg.sid}")
+            return msg.sid
+
+        except TwilioRestException as e:
+            print(f"❌ Error de Twilio enviando a {numero}: {e}")
+            return None
+        except Exception as e:
+            print(f"❌ Error inesperado enviando WhatsApp a {numero}: {e}")
+            return None
+
+    def enviar_con_plantilla(self, telefono: str, content_sid: str, variables: dict):
+        """
+        Envía un mensaje usando una plantilla (Content API) ya aprobada por Meta.
+
+        Args:
+            telefono: Número destino, con o sin prefijo "whatsapp:"
+            content_sid: El Content SID de la plantilla (empieza con HX...)
+            variables: Dict de variables posicionales, ej {"1": "Juan", "2": "Lunes"}
+
+        Returns:
+            El SID del mensaje si se envió, None si falló.
+        """
+        if not self.client:
+            print("❌ WhatsAppService no configurado, no se puede enviar")
+            return None
+
+        if not content_sid or content_sid == "HXxxxxx":
+            print("⚠️ content_sid no configurado, usando enviar_mensaje como fallback no aplica aquí")
+            return None
+
+        try:
+            msg = self.client.messages.create(
+                from_=self._normalizar(self.numero_from),
+                to=self._normalizar(telefono),
+                content_sid=content_sid,
+                content_variables=json.dumps(variables),
+            )
+            print(f"✅ Plantilla {content_sid} enviada a {telefono} — SID: {msg.sid}")
+            return msg.sid
+
+        except TwilioRestException as e:
+            print(f"❌ Error de Twilio (plantilla) enviando a {telefono}: {e}")
+            return None
+        except Exception as e:
+            print(f"❌ Error inesperado enviando plantilla a {telefono}: {e}")
+            return None
 
 
-def cargar_clientes():
-    """Carga la configuración de clientes desde JSON"""
-    ruta_clientes = os.path.join(Config.DIR_CONFIG, Config.ARCHIVO_CLIENTES)
-    
-    # Intentar cargar desde config/
-    if not os.path.exists(ruta_clientes):
-        # Fallback a raíz del proyecto
-        ruta_clientes = Config.ARCHIVO_CLIENTES
-    
-    try:
-        with open(ruta_clientes, "r", encoding="utf-8") as f:
-            peluquerias = json.load(f)
-        
-        # Validar timezones
-        for cliente_id, config in peluquerias.items():
-            tz = config.get("timezone")
-            if not tz:
-                raise ValueError(f"❌ Cliente {cliente_id} no tiene timezone configurado")
-            if tz not in available_timezones():
-                raise ValueError(f"❌ Timezone inválido para {cliente_id}: {tz}")
-        
-        print(f"✅ Clientes cargados: {len(peluquerias)}")
-        for key, config in peluquerias.items():
-            print(f"   • {config['nombre']} ({key})")
-        
-        return peluquerias
-        
-    except FileNotFoundError:
-        raise FileNotFoundError(f"❌ No se encontró {ruta_clientes}")
-    except json.JSONDecodeError:
-        raise ValueError(f"❌ {ruta_clientes} está corrupto")
-
-
-# Inicializar
-Config.validar()
-PELUQUERIAS = cargar_clientes()
-
-# Crear directorios necesarios
-os.makedirs(Config.DIR_TOKENS, exist_ok=True)
-os.makedirs(Config.DIR_CONFIG, exist_ok=True)
+# Singleton — mismo patrón que payment_service, importado como instancia ya creada
+whatsapp_service = WhatsAppService()

@@ -12,12 +12,15 @@ from app.utils.calendar_utils import CalendarUtils
 from app.bot.states.state_manager import get_state, set_state
 
 try:
-    from app.core.database import guardar_turno, guardar_cliente
+    from app.core.database import guardar_turno, guardar_cliente, crear_turno_pendiente_pago
     MONGODB_DISPONIBLE = True
 except ImportError:
     MONGODB_DISPONIBLE = False
     def guardar_turno(*args, **kwargs): return None
     def guardar_cliente(*args, **kwargs): return None
+    def crear_turno_pendiente_pago(*args, **kwargs): return None
+
+from app.services.pagos import obtener_proveedor
 
 
 class BookingHandler:
@@ -442,7 +445,21 @@ class BookingHandler:
         
         # Crear reserva
         print(f"📅 Creando reserva para {cliente} - {nombre_servicios}")
-        
+
+        # Si el negocio pide seña y tiene un proveedor de pago conectado,
+        # cobramos primero — la reserva se crea recién cuando confirme el
+        # pago (ver confirmar_turno_con_pago en app/api/webhooks/payments.py)
+        proveedor_pago = obtener_proveedor(config.get("proveedor_pago", "mercadopago"))
+        if config.get("requiere_pago") and MONGODB_DISPONIBLE and proveedor_pago and proveedor_pago.esta_conectado(peluqueria_key):
+            self._iniciar_cobro_sena(
+                peluqueria_key, config, fecha_hora, cliente,
+                servicios_seleccionados, duracion_total, numero_limpio,
+                peluquero, nombre_servicios, precio_total, numero, proveedor_pago
+            )
+            estado_usuario["paso"] = "menu"
+            set_state(numero_limpio, estado_usuario)
+            return
+
         resultado_reserva = self._crear_reserva(
             peluqueria_key,
             fecha_hora,
@@ -569,6 +586,75 @@ class BookingHandler:
             traceback.print_exc()
             return False
     
+    def _iniciar_cobro_sena(self, peluqueria_key, config, fecha_hora, cliente,
+                             servicios, duracion, numero_limpio, peluquero,
+                             nombre_servicios, precio_total, numero, proveedor_pago):
+        """
+        En vez de reservar directo, genera el link de pago de la seña
+        (mitad del total) y le avisa al cliente. La reserva real se crea
+        recién en confirmar_turno_con_pago() cuando MercadoPago confirme
+        el pago por webhook.
+        """
+        # Chequeo de disponibilidad en tiempo real antes de generar el link
+        # (evitamos mandar un link de pago para un horario que ya se ocupó)
+        slots_disponibles = self.calendar_service.buscar_turnos_disponibles(
+            peluqueria_key, peluquero, fecha_hora.date(), duracion
+        )
+        if fecha_hora.strftime("%H:%M") not in slots_disponibles:
+            whatsapp_service.enviar_mensaje(
+                "⚠️ *Ese horario ya no está disponible*\n\n"
+                "Alguien lo reservó hace unos instantes.\n\n"
+                "Escribí *menu* para elegir otro horario.",
+                numero
+            )
+            return
+
+        monto_sena = round(precio_total / 2)
+        saldo = precio_total - monto_sena
+
+        turno_pendiente_id = crear_turno_pendiente_pago({
+            "peluqueria_key": peluqueria_key,
+            "fecha_hora": fecha_hora.isoformat(),
+            "cliente_nombre": cliente,
+            "cliente_telefono": numero_limpio,
+            "servicios": servicios,
+            "nombre_servicios": nombre_servicios,
+            "duracion": duracion,
+            "peluquero": peluquero,
+            "precio_total": precio_total,
+            "monto_sena": monto_sena,
+            "saldo": saldo,
+        })
+
+        cobro = proveedor_pago.crear_cobro_sena(peluqueria_key, {
+            "monto": monto_sena,
+            "turno_pendiente_id": turno_pendiente_id,
+            "cliente_nombre": cliente,
+            "cliente_telefono": numero_limpio,
+            "descripcion": f"Seña - {nombre_servicios}",
+        })
+
+        if not cobro:
+            # Algo falló armando el cobro — mejor reservar sin seña que
+            # dejar al cliente sin poder sacar el turno
+            print(f"⚠️ No se pudo generar el cobro de seña para {peluqueria_key}, reservando sin seña")
+            self._crear_reserva(peluqueria_key, fecha_hora, cliente, servicios, duracion, numero_limpio, peluquero)
+            return
+
+        fecha_formateada = formatear_fecha_espanol(fecha_hora)
+        hora = fecha_hora.strftime("%H:%M")
+
+        whatsapp_service.enviar_mensaje(
+            "💈 *Para confirmar tu turno necesitamos una seña*\n\n"
+            f"✂️ Servicio(s): {nombre_servicios}\n"
+            f"📅 {fecha_formateada} a las {hora}\n\n"
+            f"💰 Total del servicio: ${precio_total:,}\n"
+            f"💵 Seña a pagar ahora: ${monto_sena:,}\n"
+            f"🏷️ Saldo a pagar en el local: ${saldo:,}\n\n"
+            f"Pagá acá (el link vence en 2 horas):\n{cobro['url']}".replace(',', '.'),
+            numero
+        )
+
     def _notificar_peluquero(self, peluquero, cliente, servicios, fecha_hora, config, telefono_cliente):
         """Envía notificación al peluquero sobre el nuevo turno"""
         try:
