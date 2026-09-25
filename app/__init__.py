@@ -12,6 +12,11 @@ load_dotenv()
 
 
 def create_app():
+    from app.core.google_token import asegurar_google_master_token
+    from app.core.config import iniciar_refresco_peluquerias
+    
+    asegurar_google_master_token()
+    iniciar_refresco_peluquerias()
     """
     Factory para crear la aplicación Flask
     

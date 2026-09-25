@@ -58,10 +58,13 @@ class CalendarService:
             
             # Construir ruta del token
             token_path = f"tokens/{peluqueria_key}_token.json"
+
+            if not os.path.exists(token_path):
+                token_path = "tokens/master_token.json"   # fallback: todos comparten la cuenta master
             
             if not os.path.exists(token_path):
                 raise FileNotFoundError(
-                    f"No se encontró token para {peluqueria_key} en {token_path}"
+                    f"No se encontró token para {peluqueria_key} ni tokens/master_token.json"
                 )
             
             # Cargar credenciales
